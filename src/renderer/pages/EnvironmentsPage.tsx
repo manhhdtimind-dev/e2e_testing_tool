@@ -290,7 +290,8 @@ function ProfilesPanel({ profiles, reload }: { profiles: BrowserProfile[]; reloa
             <option value="msedge">Edge</option>
           </select>
         </Field>
-        <Field label="Extension token (tuỳ chọn)">
+        <Field label="Extension token (tuỳ chọn)" hint="Dán token hoặc cả dòng PLAYWRIGHT_MCP_EXTENSION_TOKEN=… từ extension.">
+
           <input type="password" value={draft.token} placeholder={draft.id ? "Để trống = giữ nguyên" : ""} onChange={(e) => setDraft({ ...draft, token: e.target.value })} />
         </Field>
       </div>

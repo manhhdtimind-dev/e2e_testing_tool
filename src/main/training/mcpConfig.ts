@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type { BrowserProfile, Environment } from "../../shared/types";
 import { allowedOriginsArg } from "../../core/domains";
+import { normalizeExtensionToken } from "../../core/extensionToken";
 
 const require = createRequire(import.meta.url);
 const SYSTEM_ENV = ["PATH", "Path", "SystemRoot", "SystemDrive", "windir", "TEMP", "TMP", "USERPROFILE", "HOME", "LOCALAPPDATA", "APPDATA", "ProgramFiles", "ProgramFiles(x86)", "PROGRAMDATA", "XDG_CONFIG_HOME"];
@@ -39,6 +40,7 @@ export function playwrightMcpServer(opts: {
   // SDKs may start the server with only this env; the browser and profile lookup need the OS basics.
   const env: Record<string, string> = { ELECTRON_RUN_AS_NODE: "1" };
   for (const k of SYSTEM_ENV) if (process.env[k]) env[k] = process.env[k]!;
-  if (opts.extensionToken) env.PLAYWRIGHT_MCP_EXTENSION_TOKEN = opts.extensionToken;
+  const token = normalizeExtensionToken(opts.extensionToken);
+  if (token) env.PLAYWRIGHT_MCP_EXTENSION_TOKEN = token;
   return { command: process.execPath, args, env };
 }

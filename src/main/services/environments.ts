@@ -3,6 +3,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import type { BrowserProfile, Environment } from "../../shared/types";
 import { normalizeDomains } from "../../core/domains";
+import { normalizeExtensionToken } from "../../core/extensionToken";
 import type { AppContext } from "../context";
 import { AppError, newId, now } from "../util";
 import { secretKeys } from "./secrets";
@@ -122,7 +123,8 @@ export function saveProfile(ctx: AppContext, input: ProfileInput): BrowserProfil
   if (existing) ctx.repo.profiles.update([record.browser_profile_id], record);
   else ctx.repo.profiles.insert(record);
   if (input.extension_token !== undefined && input.extension_token !== null) {
-    if (input.extension_token) ctx.secrets.set(secretKeys.profileToken(record.browser_profile_id), input.extension_token);
+    const token = normalizeExtensionToken(input.extension_token);
+    if (token) ctx.secrets.set(secretKeys.profileToken(record.browser_profile_id), token);
     else ctx.secrets.delete(secretKeys.profileToken(record.browser_profile_id));
   }
   ctx.repo.audit(existing ? "profile.update" : "profile.create", "browser_profile", record.browser_profile_id, {
