@@ -203,6 +203,10 @@ try {
     "Sửa tay: lưu thành candidate #2 DRAFT, được chọn và gắn nhãn SỬA TAY",
   );
   check(!(await win.getByRole("button", { name: "Run Trial" }).isDisabled()), "Sửa tay: candidate mới Run Trial được");
+  check(
+    (await win.getByText("Candidate #2 chưa chạy Trial").isVisible()) && (await win.getByRole("button", { name: "Tới phần Trial" }).isVisible()),
+    "Candidate chưa Trial: báo rõ lý do Approve bị khoá và có nút tới phần Trial",
+  );
   await shot("08b-manual-edit");
 
   // ---------- history + settings ----------

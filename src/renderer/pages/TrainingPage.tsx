@@ -101,6 +101,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const [trialSteps, setTrialSteps] = useState<Record<string, number>>({});
   const { run, busy } = useAction();
   const eventsBox = useRef<HTMLDivElement>(null);
+  const trialPanel = useRef<HTMLDivElement>(null);
 
   const tc = cases.find((c) => c.test_id === testId) ?? null;
   const env = envs.find((e) => e.environment_id === envId) ?? null;
@@ -409,6 +410,8 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   approveReason={approveReason}
                   busy={busy}
                   editLocked={!!runningAttempt}
+                  trialCount={candidateTrials.length}
+                  onGoToTrial={() => trialPanel.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
                   onSaveEdit={async (source) => {
                     const c = await run(() => api.saveManualCandidate(candidate.candidate_id, source, envId), "Đã lưu code sửa tay thành candidate mới");
                     if (!c) return false;
@@ -431,6 +434,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
             </Panel>
 
             {candidate && (
+              <div ref={trialPanel}>
               <Panel title="Trial" actions={<span className="muted small">Chạy không dùng AI, trên browser context mới với runner auth</span>}>
                 <InputForm schema={tc.input_schema} values={trialInput} onChange={setTrialInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
                 <div className="row" style={{ marginTop: 10 }}>
@@ -463,6 +467,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   </>
                 )}
               </Panel>
+              </div>
             )}
 
             <Panel title={state?.candidates.length ? "Prompt sửa / training lại" : "Bắt đầu Training"}>
@@ -556,6 +561,8 @@ function CandidateView({
   approveReason,
   busy,
   editLocked,
+  trialCount,
+  onGoToTrial,
   onSaveEdit,
   onApprove,
   onReject,
@@ -568,6 +575,8 @@ function CandidateView({
   approveReason: { ok: boolean; reason?: string } | null;
   busy: boolean;
   editLocked: boolean;
+  trialCount: number;
+  onGoToTrial: () => void;
   onSaveEdit: (source: string) => Promise<boolean>;
   onApprove: () => void;
   onReject: () => void;
@@ -641,7 +650,16 @@ function CandidateView({
         </div>
       ) : (
         <div className="row">
-          {approveReason && !approveReason.ok && candidate.status === "DRAFT" && <span className="small muted">{approveReason.reason}</span>}
+          {approveReason && !approveReason.ok && candidate.status === "DRAFT" && (
+            <>
+              <span className="small muted">
+                {trialCount === 0 ? `Candidate #${candidate.revision_no} chưa chạy Trial. Approve mở khi có Trial PASSED.` : approveReason.reason}
+              </span>
+              <button className="btn sm" onClick={onGoToTrial}>
+                Tới phần Trial ↓
+              </button>
+            </>
+          )}
           <span style={{ flex: 1 }} />
           <button className="btn" disabled={busy || candidate.status !== "DRAFT"} onClick={onReject}>
             Từ chối
