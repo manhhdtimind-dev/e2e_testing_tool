@@ -575,7 +575,7 @@ function CandidateView({
           Tải script
         </button>
       </div>
-      {showDiff && previous ? <DiffView before={previous.source} after={candidate.source} /> : <CodeView source={candidate.source} />}
+      <div className="candidate-code">{showDiff && previous ? <DiffView before={previous.source} after={candidate.source} /> : <CodeView source={candidate.source} />}</div>
       <div className="row">
         {approveReason && !approveReason.ok && candidate.status === "DRAFT" && <span className="small muted">{approveReason.reason}</span>}
         <span style={{ flex: 1 }} />

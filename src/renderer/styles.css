@@ -144,6 +144,7 @@ table.t tr.sel td { background: var(--cobalt-soft); }
 .code .ln.del { background: #fce9e7; }
 .code .ln.del .n::after { content: " −"; color: var(--fail); }
 .code .ln.hl { background: #fff6d6; }
+.candidate-code .code { max-height: clamp(200px, 32vh, 360px); }
 
 /* ---------- signature: pipeline rail ---------- */
 .rail { display: grid; grid-template-columns: repeat(5, 1fr); margin: 4px 0 16px; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
