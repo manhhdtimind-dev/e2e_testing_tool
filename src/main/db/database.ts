@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
 
-const MIGRATIONS: string[] = [
+export const MIGRATIONS: string[] = [
   `
   CREATE TABLE test_cases (
     test_id TEXT PRIMARY KEY,
@@ -150,6 +150,27 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_runs_test ON test_runs(test_id, created_at);
   `,
   `ALTER TABLE environments DROP COLUMN auth_check;`,
+  `
+  DROP TRIGGER versions_immutable;
+  CREATE TABLE versions_new (
+    script_id TEXT NOT NULL REFERENCES scripts(script_id),
+    version_no INTEGER NOT NULL,
+    candidate_id TEXT NOT NULL,
+    source_hash TEXT NOT NULL,
+    source TEXT NOT NULL,
+    trial_id TEXT,
+    environment_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    approved_at TEXT NOT NULL,
+    approved_by TEXT NOT NULL,
+    PRIMARY KEY (script_id, version_no)
+  );
+  INSERT INTO versions_new SELECT script_id, version_no, candidate_id, source_hash, source, trial_id, environment_id, status, approved_at, approved_by FROM versions;
+  DROP TABLE versions;
+  ALTER TABLE versions_new RENAME TO versions;
+  CREATE TRIGGER versions_immutable BEFORE UPDATE OF source, source_hash, candidate_id, version_no, script_id ON versions
+  BEGIN SELECT RAISE(ABORT, 'script version is immutable'); END;
+  `,
 ];
 
 export type Row = Record<string, unknown>;

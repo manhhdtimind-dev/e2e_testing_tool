@@ -97,7 +97,6 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const [pre, setPre] = useState<PreflightResult | null>(null);
   const [liveEvents, setLiveEvents] = useState<Record<string, TrainingEvent[]>>({});
   const [storedEvents, setStoredEvents] = useState<TrainingEvent[]>([]);
-  const [approveReason, setApproveReason] = useState<{ ok: boolean; reason?: string } | null>(null);
   const [trialSteps, setTrialSteps] = useState<Record<string, number>>({});
   const { run, busy } = useAction();
   const eventsBox = useRef<HTMLDivElement>(null);
@@ -201,11 +200,6 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
     }
   }, [candidate?.candidate_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    setApproveReason(null);
-    if (candidate && envId) api.approveCheck(candidate.candidate_id, envId).then(setApproveReason).catch(() => undefined);
-  }, [candidate, envId, state?.trials]);
-
   const stages = useMemo(() => {
     const last = state?.attempts[0];
     const preStatus = runningAttempt?.preflight_status ?? pre?.status ?? last?.preflight_status ?? null;
@@ -220,12 +214,12 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
       { name: "Candidate", state: (candidate ? "done" : "idle") as StageState, text: candidate ? `Revision #${candidate.revision_no} · ${candidate.status}` : "Chưa có" },
       { name: "Trial", state: s4, text: t ? `${t.status}${t.error_code ? ` · ${t.error_code}` : ""}` : "Chưa chạy" },
       {
-        name: "Approve",
-        state: (approvedVersion ? "done" : approveReason?.ok ? "active" : "idle") as StageState,
-        text: approvedVersion ? `Version v${approvedVersion.version_no}${approvedVersion.status === "APPROVED" ? "" : ` · ${approvedVersion.status}`}` : approveReason?.ok ? "Sẵn sàng duyệt" : "Chưa đủ điều kiện",
+        name: "Chấp nhận",
+        state: (approvedVersion ? "done" : candidate ? "active" : "idle") as StageState,
+        text: approvedVersion ? `Version v${approvedVersion.version_no}${approvedVersion.status === "APPROVED" ? "" : ` · ${approvedVersion.status}`}` : candidate ? "Chờ quyết định" : "Chưa có candidate",
       },
     ];
-  }, [state, runningAttempt, pre, candidate, candidateTrials, approveReason]);
+  }, [state, runningAttempt, pre, candidate, candidateTrials]);
 
   const integrationNote = integration && !integration[agent]?.ok ? `Adapter ${AGENT_LABEL[agent]} chưa qua kiểm tra tích hợp trên máy này (Cài đặt → Kiểm tra tích hợp).` : null;
 
@@ -321,7 +315,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
         {pre && <div className={pre.status === "CONNECTED" ? "info-box" : "error-box"} style={{ marginTop: 10 }}>{pre.message}</div>}
         {agentSwitch && (
           <div className="warn-box" style={{ marginTop: 10 }}>
-            Script đang dùng {AGENT_LABEL[activeThread!.provider]}. Gửi prompt với {AGENT_LABEL[agent]} sẽ tạo provider thread mới từ test case, candidate, prompt và trial đã lưu. Candidate/version cũ giữ nguyên và cần trial lại trước khi Approve.
+            Script đang dùng {AGENT_LABEL[activeThread!.provider]}. Gửi prompt với {AGENT_LABEL[agent]} sẽ tạo provider thread mới từ test case, candidate, prompt và trial đã lưu. Candidate/version cũ giữ nguyên.
           </div>
         )}
         {integrationNote && <div className="warn-box" style={{ marginTop: 10 }}>{integrationNote}</div>}
@@ -407,7 +401,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   previous={previous}
                   showDiff={showDiff}
                   setShowDiff={setShowDiff}
-                  approveReason={approveReason}
+                  hasPassedTrial={candidateTrials.some((t) => t.status === "PASSED" && t.source_hash === candidate.source_hash && t.environment_id === envId)}
                   busy={busy}
                   editLocked={!!runningAttempt}
                   trialCount={candidateTrials.length}
@@ -425,7 +419,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                     void reload();
                   }}
                   onApprove={async () => {
-                    const v = await run(() => api.approveCandidate(candidate.candidate_id, envId), "Đã duyệt version mới");
+                    const v = await run(() => api.approveCandidate(candidate.candidate_id, envId), "Đã chấp nhận, tạo version mới");
                     if (v) void reload();
                   }}
                   onExport={() => run(() => api.exportCandidate(candidate.candidate_id, `${tc.test_id}_rev${candidate.revision_no}`))}
@@ -558,7 +552,7 @@ function CandidateView({
   previous,
   showDiff,
   setShowDiff,
-  approveReason,
+  hasPassedTrial,
   busy,
   editLocked,
   trialCount,
@@ -572,7 +566,7 @@ function CandidateView({
   previous?: CandidateRevision;
   showDiff: boolean;
   setShowDiff: (v: boolean) => void;
-  approveReason: { ok: boolean; reason?: string } | null;
+  hasPassedTrial: boolean;
   busy: boolean;
   editLocked: boolean;
   trialCount: number;
@@ -633,7 +627,7 @@ function CandidateView({
       )}
       {editing ? (
         <div className="row">
-          <span className="small muted">Lưu sẽ tạo candidate mới từ code này; cần Run Trial PASSED trước khi Approve.</span>
+          <span className="small muted">Lưu sẽ tạo candidate mới từ code này.</span>
           <span style={{ flex: 1 }} />
           <button className="btn" disabled={busy} onClick={() => setDraft(null)}>
             Huỷ
@@ -650,10 +644,10 @@ function CandidateView({
         </div>
       ) : (
         <div className="row">
-          {approveReason && !approveReason.ok && candidate.status === "DRAFT" && (
+          {candidate.status !== "APPROVED" && !hasPassedTrial && (
             <>
               <span className="small muted">
-                {trialCount === 0 ? `Candidate #${candidate.revision_no} chưa chạy Trial. Approve mở khi có Trial PASSED.` : approveReason.reason}
+                {trialCount === 0 ? `Candidate #${candidate.revision_no} chưa chạy Trial` : "Chưa có Trial PASSED trên environment này"} (không bắt buộc).
               </span>
               <button className="btn sm" onClick={onGoToTrial}>
                 Tới phần Trial ↓
@@ -664,8 +658,8 @@ function CandidateView({
           <button className="btn" disabled={busy || candidate.status !== "DRAFT"} onClick={onReject}>
             Từ chối
           </button>
-          <button className="btn good" disabled={busy || !approveReason?.ok} onClick={onApprove} title={approveReason?.reason}>
-            Approve
+          <button className="btn good" disabled={busy || candidate.status === "APPROVED"} onClick={onApprove}>
+            Chấp nhận
           </button>
         </div>
       )}

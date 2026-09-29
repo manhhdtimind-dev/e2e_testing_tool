@@ -6,9 +6,9 @@ export interface ApproveCheck {
   trial?: TrialRun;
 }
 
+/** The user decides; a matching PASSED trial is only attached to the version when one exists. */
 export function checkApprove(candidate: CandidateRevision, trials: TrialRun[], environmentId: string): ApproveCheck {
-  if (candidate.status !== "DRAFT") return { ok: false, reason: `Candidate đang ở trạng thái ${candidate.status}` };
-  if (!candidate.reviewed_at) return { ok: false, reason: "Cần mở xem candidate trước khi Approve" };
+  if (candidate.status === "APPROVED") return { ok: false, reason: "Candidate này đã được chấp nhận" };
   const passed = trials
     .filter(
       (t) =>
@@ -18,9 +18,6 @@ export function checkApprove(candidate: CandidateRevision, trials: TrialRun[], e
         t.status === "PASSED",
     )
     .sort((a, b) => (b.finished_at ?? "").localeCompare(a.finished_at ?? ""));
-  if (passed.length === 0) {
-    return { ok: false, reason: "Chưa có trial PASSED cho đúng candidate, source hash và environment này" };
-  }
   return { ok: true, trial: passed[0] };
 }
 

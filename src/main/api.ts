@@ -47,8 +47,6 @@ import {
 import { cancelTraining, saveManualCandidate, startTraining, type StartTrainingRequest } from "./training/orchestrator";
 import { runPreflight } from "./training/preflight";
 import { getIntegrationStatus, runIntegrationCheck } from "./training/integrationCheck";
-import { checkApprove } from "../core/rules";
-
 export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
   const saveDialog = async (defaultPath: string, filters: Electron.FileFilter[]) => {
     const w = win();
@@ -162,12 +160,6 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     rejectCandidate: (candidateId: string) => rejectCandidate(ctx, candidateId),
     saveManualCandidate: (candidateId: string, source: string, envId: string) => saveManualCandidate(ctx, candidateId, source, envId || undefined),
     startTrial: (candidateId: string, envId: string, input: InputValues) => startTrial(ctx, candidateId, envId, input),
-    approveCheck: (candidateId: string, envId: string) => {
-      const c = ctx.repo.candidates.get(candidateId);
-      if (!c) return { ok: false, reason: "Không tìm thấy candidate" };
-      const r = checkApprove(c, ctx.repo.trials.where("candidate_id = ?", candidateId), envId);
-      return { ok: r.ok, reason: r.reason };
-    },
     approveCandidate: (candidateId: string, envId: string) => approveCandidate(ctx, candidateId, envId),
 
     // ---------- testing ----------

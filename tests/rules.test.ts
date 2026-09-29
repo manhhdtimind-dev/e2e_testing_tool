@@ -36,17 +36,22 @@ const trial = (over: Partial<TrialRun>): TrialRun => ({
 });
 
 describe("approve rules", () => {
-  it("requires a PASSED trial for same candidate, hash and environment", () => {
-    expect(checkApprove(candidate, [trial({})], "e1").ok).toBe(true);
-    expect(checkApprove(candidate, [trial({ status: "FAILED" })], "e1").ok).toBe(false);
-    expect(checkApprove(candidate, [trial({ source_hash: "h0" })], "e1").ok).toBe(false);
-    expect(checkApprove(candidate, [trial({ environment_id: "e2" })], "e1").ok).toBe(false);
-    expect(checkApprove(candidate, [trial({ candidate_id: "c2" })], "e1").ok).toBe(false);
+  it("does not require a trial or review", () => {
+    expect(checkApprove(candidate, [], "e1")).toEqual({ ok: true, trial: undefined });
+    expect(checkApprove({ ...candidate, reviewed_at: null }, [trial({ status: "FAILED" })], "e1").ok).toBe(true);
   });
 
-  it("requires the candidate to be reviewed and still DRAFT", () => {
-    expect(checkApprove({ ...candidate, reviewed_at: null }, [trial({})], "e1").ok).toBe(false);
-    expect(checkApprove({ ...candidate, status: "REJECTED" }, [trial({})], "e1").ok).toBe(false);
+  it("attaches only a PASSED trial of the same candidate, hash and environment", () => {
+    expect(checkApprove(candidate, [trial({})], "e1").trial?.trial_id).toBe("t");
+    expect(checkApprove(candidate, [trial({ status: "FAILED" })], "e1").trial).toBeUndefined();
+    expect(checkApprove(candidate, [trial({ source_hash: "h0" })], "e1").trial).toBeUndefined();
+    expect(checkApprove(candidate, [trial({ environment_id: "e2" })], "e1").trial).toBeUndefined();
+    expect(checkApprove(candidate, [trial({ candidate_id: "c2" })], "e1").trial).toBeUndefined();
+  });
+
+  it("allows accepting a rejected candidate but not accepting twice", () => {
+    expect(checkApprove({ ...candidate, status: "REJECTED" }, [], "e1").ok).toBe(true);
+    expect(checkApprove({ ...candidate, status: "APPROVED" }, [], "e1").ok).toBe(false);
   });
 
   it("versions", () => {

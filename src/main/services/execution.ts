@@ -177,7 +177,8 @@ export function approveCandidate(ctx: AppContext, candidateId: string, environme
   const trials = ctx.repo.trials.where("candidate_id = ?", candidateId);
   const check = checkApprove(candidate, trials, environmentId);
   if (!check.ok) throw new AppError(check.reason!);
-  if (sha256(candidate.source) !== candidate.source_hash) throw new AppError("Source đã thay đổi sau trial; cần chạy trial lại");
+  if (sha256(candidate.source) !== candidate.source_hash) throw new AppError("Source của candidate không khớp source_hash");
+  getEnvironment(ctx, environmentId);
   const version = ctx.repo.db.tx(() => {
     const versions = ctx.repo.versions.where("script_id = ?", candidate.script_id);
     const v: ScriptVersion = {
@@ -186,7 +187,7 @@ export function approveCandidate(ctx: AppContext, candidateId: string, environme
       candidate_id: candidate.candidate_id,
       source_hash: candidate.source_hash,
       source: candidate.source,
-      trial_id: check.trial!.trial_id,
+      trial_id: check.trial?.trial_id ?? null,
       environment_id: environmentId,
       status: "APPROVED",
       approved_at: now(),
@@ -198,6 +199,7 @@ export function approveCandidate(ctx: AppContext, candidateId: string, environme
   });
   ctx.repo.audit("candidate.approve", "script_version", `${version.script_id}:v${version.version_no}`, {
     candidate_id: candidateId,
+    previous_status: candidate.status,
     source_hash: version.source_hash,
     trial_id: version.trial_id,
     environment_id: environmentId,

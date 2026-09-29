@@ -1,6 +1,6 @@
 // UI smoke test of the packaged Electron app against the demo site (no AI involved).
 // A candidate is seeded directly into SQLite in place of a Training turn; everything after that
-// (Trial → Approve → Testing → review → broken locator → Send to Training) goes through the UI.
+// (Trial → Chấp nhận → Testing → review → broken locator → Send to Training) goes through the UI.
 // Usage: npm run smoke:ui   (requires `node scripts/build.mjs` first)
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -150,15 +150,18 @@ try {
   // ---------- training page: trial + approve ----------
   await nav("Training");
   await win.getByText("Revision #1").first().waitFor();
-  check(await win.getByRole("button", { name: "Approve" }).isDisabled(), "Approve bị khoá khi chưa có trial PASSED");
+  check(
+    (await win.getByRole("button", { name: "Chấp nhận" }).isEnabled()) && (await win.getByRole("button", { name: "Từ chối" }).isEnabled()),
+    "Chấp nhận / Từ chối bấm được khi chưa chạy Trial",
+  );
   await win.getByRole("button", { name: "Run Trial" }).click();
   await win.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
   check(true, "Trial PASSED qua UI");
   await win.locator(".steps, table.t").first().waitFor();
   await shot("04-training-trial-passed");
-  await win.getByRole("button", { name: "Approve" }).click();
+  await win.getByRole("button", { name: "Chấp nhận" }).click();
   await win.getByText("Version v1").first().waitFor();
-  check(true, "Approve tạo version v1");
+  check(!!(await bridge("getScriptState", "TC_CAMP_001")).versions[0]?.trial_id, "Chấp nhận tạo version v1, gắn Trial PASSED");
   await shot("05-training-approved");
 
   // ---------- testing: completed + review ----------
@@ -205,9 +208,13 @@ try {
   check(!(await win.getByRole("button", { name: "Run Trial" }).isDisabled()), "Sửa tay: candidate mới Run Trial được");
   check(
     (await win.getByText("Candidate #2 chưa chạy Trial").isVisible()) && (await win.getByRole("button", { name: "Tới phần Trial" }).isVisible()),
-    "Candidate chưa Trial: báo rõ lý do Approve bị khoá và có nút tới phần Trial",
+    "Candidate chưa Trial: có gợi ý (không bắt buộc) và nút tới phần Trial",
   );
   await shot("08b-manual-edit");
+  await win.getByRole("button", { name: "Chấp nhận" }).click();
+  await win.getByText("Version v2").first().waitFor();
+  const v2 = (await bridge("getScriptState", "TC_CAMP_001")).versions.find((v) => v.version_no === 2);
+  check(v2?.status === "APPROVED" && v2.trial_id === null, "Chấp nhận candidate chưa Trial tạo version v2 (không gắn Trial)");
 
   // ---------- history + settings ----------
   await nav("History");

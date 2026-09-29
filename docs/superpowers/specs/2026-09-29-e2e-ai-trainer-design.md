@@ -47,7 +47,7 @@ lượt sửa trong cùng thread → tạo candidate revision bất biến (`sou
 **Trial:** chạy đúng source của candidate trên browser context mới với runner storage state của environment
 (chưa có storage state → `AUTH_REQUIRED`); step log, screenshot cuối, trace khi lỗi. `PASSED | FAILED | AUTH_REQUIRED`.
 
-**Approve:** chỉ khi candidate đã được xem và có trial `PASSED` khớp `candidate_id + source_hash + environment_id`.
+**Chấp nhận (Approve) / Từ chối:** người dùng toàn quyền, không phụ thuộc Trial. Chấp nhận được candidate `DRAFT` hoặc `REJECTED` (chưa `APPROVED`); Từ chối được candidate `DRAFT`. Nếu có trial `PASSED` khớp `candidate_id + source_hash + environment_id` thì version ghi kèm `trial_id`, không có thì `trial_id = NULL`.
 Tạo version `vN` bất biến (lưu bản sao source).
 
 **Testing:** chọn version `APPROVED`, input theo schema → runner → `COMPLETED` (review `PENDING` → người dùng PASS/FAIL + ghi chú)

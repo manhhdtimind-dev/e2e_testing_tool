@@ -160,7 +160,8 @@ export interface ScriptVersion {
   candidate_id: string;
   source_hash: string;
   source: string;
-  trial_id: string;
+  /** Latest PASSED trial of this exact source in this environment, if any; accepting does not require one. */
+  trial_id: string | null;
   environment_id: string;
   status: VersionStatus;
   approved_at: string;
