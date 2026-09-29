@@ -67,7 +67,7 @@ try {
   win.on("pageerror", (e) => errors.push(String(e)));
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setContentSize(1440, 900));
   const shot = (name) => win.screenshot({ path: join(shots, `${name}.png`) });
-  const nav = (label) => win.locator("nav.nav button", { hasText: label }).click();
+  const nav = (label) => win.locator(".topnav button", { hasText: label }).click();
   const bridge = (method, ...args) =>
     win.evaluate(async ([m, a]) => {
       const r = await window.bridge.call(m, a);

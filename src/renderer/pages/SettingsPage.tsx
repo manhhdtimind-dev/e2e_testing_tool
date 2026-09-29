@@ -124,7 +124,7 @@ export function SettingsPage() {
 
         <Panel title="Kiểm tra tích hợp agent">
           <p className="hint" style={{ marginTop: 0 }}>
-            Bắt buộc trên máy đích: SDK → Playwright MCP Extension → đúng profile → preflight đăng nhập → tool action → candidate file. Adapter chỉ được coi là hoạt động khi kiểm tra này đạt.
+            Bắt buộc trên máy đích: SDK → Playwright MCP Extension → đúng profile → preflight → tool action → candidate file. Adapter chỉ được coi là hoạt động khi kiểm tra này đạt.
           </p>
           <div className="row" style={{ marginBottom: 12 }}>
             <select value={check.profile} onChange={(e) => setCheck({ ...check, profile: e.target.value })}>
