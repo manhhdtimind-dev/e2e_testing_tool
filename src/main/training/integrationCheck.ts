@@ -5,7 +5,7 @@ import { validateScript } from "../../core/scriptValidator";
 import type { AppContext } from "../context";
 import { paths } from "../paths";
 import { AppError, now } from "../util";
-import { getEnvironment, getProfile, requireAuthCheck } from "../services/environments";
+import { getEnvironment, getProfile } from "../services/environments";
 import { secretKeys } from "../services/secrets";
 import { runPreflight } from "./preflight";
 import { playwrightMcpServer } from "./mcpConfig";
@@ -24,12 +24,11 @@ export interface IntegrationCheckResult {
 
 /**
  * Mandatory integration spike (requirement §11): SDK → Playwright MCP extension → selected profile →
- * preflight login → tool actions → candidate file. An adapter is only reported as working after this passes.
+ * preflight → tool actions → candidate file. An adapter is only reported as working after this passes.
  */
 export async function runIntegrationCheck(ctx: AppContext, agent: AgentProvider, profileId: string, environmentId: string): Promise<IntegrationCheckResult> {
   const profile = getProfile(ctx, profileId);
   const env = getEnvironment(ctx, environmentId);
-  requireAuthCheck(env);
   const settings = ctx.settings();
   const token = ctx.secrets.get(secretKeys.profileToken(profile.browser_profile_id));
   const checks: IntegrationCheckResult["checks"] = [];

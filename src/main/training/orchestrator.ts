@@ -19,7 +19,7 @@ import { findProfileConflicts } from "../../core/profileConflict";
 import type { AppContext } from "../context";
 import { artifactDir, paths, toArtifactRef } from "../paths";
 import { AppError, newId, now, sha256, truncate } from "../util";
-import { environmentSecrets, getEnvironment, getProfile, listProfiles, requireAuthCheck } from "../services/environments";
+import { environmentSecrets, getEnvironment, getProfile, listProfiles } from "../services/environments";
 import { secretKeys } from "../services/secrets";
 import { runPreflight } from "./preflight";
 import { playwrightMcpServer } from "./mcpConfig";
@@ -70,7 +70,6 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
   if (!tc) throw new AppError(`Không tìm thấy test case ${req.test_id}`);
   if (!tc.confirmed_at) throw new AppError("Test case chưa được xác nhận");
   const env = getEnvironment(ctx, req.environment_id);
-  requireAuthCheck(env);
   const profile = getProfile(ctx, req.browser_profile_id);
   const conflicts = findProfileConflicts(req.prompt, listProfiles(ctx), profile.browser_profile_id);
   if (conflicts.length) {
@@ -268,7 +267,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     if (pre.status !== "CONNECTED") {
       updateAttempt(ctx, attempt, {
         preflight_status: pre.status,
-        status: pre.status === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : "FAILED",
+        status: "FAILED",
         error: pre.message,
       });
       return;

@@ -149,6 +149,7 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_trials_candidate ON trials(candidate_id);
   CREATE INDEX idx_runs_test ON test_runs(test_id, created_at);
   `,
+  `ALTER TABLE environments DROP COLUMN auth_check;`,
 ];
 
 export type Row = Record<string, unknown>;

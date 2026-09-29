@@ -77,14 +77,12 @@ async function execute(
   let steps = 0;
   const result = await runJob(
     {
-      kind: "script",
       runDir: dir,
       compiledPath,
       input: runtime,
       secretValues: [...secretValues, ...Object.values(environmentSecrets(ctx, env.environment_id))],
       baseUrl: env.base_url,
       allowedDomains: env.allowed_domains,
-      authCheck: env.auth_check,
       browser: settings.runner_browser,
       headless: settings.runner_headless,
       timeoutMs: settings.run_timeout_sec * 1000,

@@ -68,14 +68,12 @@ try {
       writeFileSync(statePath, storageState);
     }
     const job = {
-      kind: "script",
       runDir,
       compiledPath,
       input,
       secretValues: [],
       baseUrl: BASE,
       allowedDomains: ["localhost"],
-      authCheck: { check_url: "/campaigns", rules: [{ type: "url_not_contains", value: "/login" }, { type: "text_present", value: "Xin chào" }] },
       storageStatePath: statePath,
       browser,
       headless: true,

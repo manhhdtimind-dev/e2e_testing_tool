@@ -33,9 +33,9 @@ demo-site    website mẫu (login + campaign) để kiểm thử end-to-end
 người dùng sửa bản parse → Xác nhận (lưu cả `raw_import` và bản đã xác nhận). `input` chấp nhận YAML/JSON/`key=value` mỗi dòng.
 Biến `{{name}}` trong steps phải có trong input. Schema tạo từ key của input (kiểu string, required, có thể đánh dấu secret).
 
-**Preflight:** app tự mở MCP client tới Playwright MCP (extension + profile dir đã chọn), navigate `auth_check.check_url || base_url`,
-lấy snapshot và kiểm tra các rule (`url_contains`, `url_not_contains`, `text_present`, `css_present`), trả
-`CONNECTED | AUTH_REQUIRED | PROFILE_UNAVAILABLE`. Không có rule → chặn Training.
+**Preflight:** app tự mở MCP client tới Playwright MCP (extension + profile dir đã chọn), navigate `base_url`,
+trả `CONNECTED | PROFILE_UNAVAILABLE`. Không có bước kiểm tra đăng nhập (`auth_check`) — đã bỏ theo quyết định của người dùng;
+agent tự báo `auth_required` nếu gặp trang đăng nhập trong lúc Training.
 
 **Training attempt:** khóa profile → preflight → đảm bảo script + provider thread (tạo thread mới khi đổi agent hoặc
 thread hỏng, `supersedes_thread_id`) → chuẩn bị workspace `workspaces/<script_id>/` với `candidate.ts` mới nhất →
@@ -44,8 +44,8 @@ tool event vào action log → đọc `candidate.ts` → validate AST (hàm `run
 không hardcode input mẫu/secret, không toạ độ chuột, không import/API ngoài danh sách cho phép) → nếu lỗi gửi lại tối đa 2
 lượt sửa trong cùng thread → tạo candidate revision bất biến (`source_hash` sha256). Giới hạn thời gian và số browser action.
 
-**Trial:** chạy đúng source của candidate trên browser context mới với runner storage state của environment; kiểm tra
-auth trước action đầu; step log, screenshot cuối, trace khi lỗi. `PASSED | FAILED | AUTH_REQUIRED`.
+**Trial:** chạy đúng source của candidate trên browser context mới với runner storage state của environment
+(chưa có storage state → `AUTH_REQUIRED`); step log, screenshot cuối, trace khi lỗi. `PASSED | FAILED | AUTH_REQUIRED`.
 
 **Approve:** chỉ khi candidate đã được xem và có trial `PASSED` khớp `candidate_id + source_hash + environment_id`.
 Tạo version `vN` bất biến (lưu bản sao source).

@@ -1,14 +1,9 @@
 import { createRequire } from "node:module";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { Browser, BrowserContext } from "playwright";
-import type { RunnerResult } from "../../shared/types";
 import type { AppContext } from "../context";
 import { AppError, now } from "../util";
-import { getEnvironment, requireAuthCheck } from "./environments";
+import { getEnvironment } from "./environments";
 import { secretKeys } from "./secrets";
-import { runJob } from "../runner/runnerHost";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright") as typeof import("playwright");
@@ -67,39 +62,4 @@ export function clearRunnerAuth(ctx: AppContext, envId: string) {
   ctx.secrets.delete(secretKeys.runnerAuth(envId));
   ctx.repo.environments.update([envId], { runner_auth_ref: null, runner_auth_updated_at: null });
   ctx.repo.audit("runner_auth.clear", "environment", envId);
-}
-
-/** Runs only the environment's auth_check with the runner auth state, in the isolated runner process. */
-export async function checkRunnerAuth(ctx: AppContext, envId: string): Promise<RunnerResult> {
-  const env = getEnvironment(ctx, envId);
-  requireAuthCheck(env);
-  const settings = ctx.settings();
-  const dir = mkdtempSync(join(tmpdir(), "e2e-authcheck-"));
-  try {
-    const state = env.runner_auth_ref ? ctx.secrets.get(env.runner_auth_ref) : null;
-    const result = await runJob(
-      {
-        kind: "authcheck",
-        runDir: dir,
-        compiledPath: null,
-        input: {},
-        secretValues: [],
-        baseUrl: env.base_url,
-        allowedDomains: env.allowed_domains,
-        authCheck: env.auth_check,
-        browser: settings.runner_browser,
-        headless: true,
-        timeoutMs: 60_000,
-        actionTimeoutMs: 10_000,
-        navigationTimeoutMs: 30_000,
-        traceOnSuccess: false,
-      },
-      state,
-      { fsRestricted: settings.runner_fs_restricted },
-    );
-    ctx.repo.audit("runner_auth.check", "environment", envId, { ok: result.ok, error_code: result.error_code });
-    return { ...result, screenshot: null, trace: null };
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
 }

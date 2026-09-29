@@ -21,7 +21,7 @@ import {
   type EnvironmentInput,
   type ProfileInput,
 } from "./services/environments";
-import { beginRunnerLogin, cancelRunnerLogin, checkRunnerAuth, clearRunnerAuth, finishRunnerLogin } from "./services/runnerAuth";
+import { beginRunnerLogin, cancelRunnerLogin, clearRunnerAuth, finishRunnerLogin } from "./services/runnerAuth";
 import {
   approveCandidate,
   markCandidateReviewed,
@@ -98,7 +98,6 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     finishRunnerLogin: (sessionId: string) => finishRunnerLogin(ctx, sessionId),
     cancelRunnerLogin: (sessionId: string) => cancelRunnerLogin(ctx, sessionId),
     clearRunnerAuth: (envId: string) => clearRunnerAuth(ctx, envId),
-    checkRunnerAuth: (envId: string) => checkRunnerAuth(ctx, envId),
     listProfiles: () => listProfiles(ctx),
     saveProfile: (input: ProfileInput) => saveProfile(ctx, input),
     deleteProfile: (id: string) => deleteProfile(ctx, id),

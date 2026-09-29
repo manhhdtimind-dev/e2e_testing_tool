@@ -95,7 +95,6 @@ try {
     name: "Demo local",
     base_url: `${BASE}/__admin/autologin`,
     allowed_domains: [],
-    auth_check: { check_url: "/campaigns", rules: [{ type: "text_present", value: "Xin chào demo" }, { type: "url_not_contains", value: "/login" }] },
     secret_fields: [],
   };
   const env = await bridge("saveEnvironment", envInput);
@@ -103,10 +102,9 @@ try {
   await new Promise((r) => setTimeout(r, 2500));
   await bridge("finishRunnerLogin", session_id);
   await bridge("saveEnvironment", { ...envInput, environment_id: env.environment_id, base_url: BASE });
-  const authCheck = await bridge("checkRunnerAuth", env.environment_id);
-  check(authCheck.ok, `Runner auth check trong Electron-as-Node (${authCheck.error_code ?? "ok"})`);
   await nav("Environment");
   await win.getByText("Demo local").first().waitFor();
+  check((await win.getByText("Kiểm tra đăng nhập").count()) === 0, "Environment không còn phần auth_check");
   await shot("03-environment");
 
   // ---------- seed a candidate as a Training turn would ----------

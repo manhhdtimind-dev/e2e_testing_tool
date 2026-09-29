@@ -1,42 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AuthRule, AuthRuleType, BrowserProfile, PreflightResult, RunnerResult } from "../../shared/types";
+import type { BrowserProfile, PreflightResult } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
 import { Badge, Field, Panel, fmtTime, useAction } from "../components/ui";
 
 type EnvRow = ApiResult<"listEnvironments">[number];
 type Detected = ApiResult<"detectProfiles">[number];
 
-const RULE_LABEL: Record<AuthRuleType, string> = {
-  url_not_contains: "URL không chứa",
-  url_contains: "URL chứa",
-  text_present: "Trang có chữ",
-  css_present: "Có phần tử CSS",
-};
-
 interface EnvDraft {
   environment_id?: string;
   name: string;
   base_url: string;
   allowed_domains: string;
-  check_url: string;
-  rules: AuthRule[];
   secret_fields: string;
 }
 
-const blankEnv = (): EnvDraft => ({
-  name: "",
-  base_url: "",
-  allowed_domains: "",
-  check_url: "",
-  rules: [{ type: "url_not_contains", value: "/login" }],
-  secret_fields: "",
-});
+const blankEnv = (): EnvDraft => ({ name: "", base_url: "", allowed_domains: "", secret_fields: "" });
 
 function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; profiles: BrowserProfile[]; onSaved: (id: string) => void }) {
   const [d, setD] = useState<EnvDraft>(blankEnv());
   const [secretValues, setSecretValues] = useState<Record<string, string>>({});
   const [authSession, setAuthSession] = useState<string | null>(null);
-  const [authCheck, setAuthCheck] = useState<RunnerResult | null>(null);
   const [preProfile, setPreProfile] = useState("");
   const [pre, setPre] = useState<PreflightResult | null>(null);
   const { run, busy } = useAction();
@@ -49,14 +32,11 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
             name: env.name,
             base_url: env.base_url,
             allowed_domains: env.allowed_domains.join(", "),
-            check_url: env.auth_check.check_url,
-            rules: env.auth_check.rules.length ? env.auth_check.rules : blankEnv().rules,
             secret_fields: env.secret_fields.join(", "),
           }
         : blankEnv(),
     );
     setSecretValues({});
-    setAuthCheck(null);
     setPre(null);
     setAuthSession(null);
   }, [env]);
@@ -73,7 +53,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           name: d.name,
           base_url: d.base_url,
           allowed_domains: d.allowed_domains.split(/[,\s]+/).filter(Boolean),
-          auth_check: { check_url: d.check_url, rules: d.rules },
           secret_fields: d.secret_fields.split(/[,\s]+/).filter(Boolean),
         }),
       "Đã lưu environment",
@@ -94,39 +73,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           <Field label="Allowed domains" hint="Phân tách bằng dấu phẩy; hỗ trợ *.example.com. Domain của base URL luôn được thêm.">
             <input type="text" value={d.allowed_domains} onChange={(e) => setD({ ...d, allowed_domains: e.target.value })} />
           </Field>
-        </div>
-        <h3 style={{ fontFamily: "var(--display)", fontSize: 13, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--ink-2)", margin: "18px 0 8px" }}>
-          Kiểm tra đăng nhập (auth_check)
-        </h3>
-        <p className="hint" style={{ marginTop: 0 }}>
-          Mở trang dưới đây rồi kiểm tra tất cả điều kiện. Dùng cho preflight của Training profile và cho runner trước action đầu tiên.
-        </p>
-        <div className="form-grid">
-          <Field label="Trang kiểm tra" hint="Để trống = base URL; có thể là đường dẫn tương đối">
-            <input type="text" value={d.check_url} onChange={(e) => setD({ ...d, check_url: e.target.value })} />
-          </Field>
-        </div>
-        <div className="col" style={{ marginTop: 10 }}>
-          {d.rules.map((r, i) => (
-            <div className="row" key={i}>
-              <select value={r.type} onChange={(e) => setD({ ...d, rules: d.rules.map((x, idx) => (idx === i ? { ...x, type: e.target.value as AuthRuleType } : x)) })}>
-                {Object.entries(RULE_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <input type="text" style={{ flex: 1 }} value={r.value} onChange={(e) => setD({ ...d, rules: d.rules.map((x, idx) => (idx === i ? { ...x, value: e.target.value } : x)) })} />
-              <button className="btn sm" onClick={() => setD({ ...d, rules: d.rules.filter((_, idx) => idx !== i) })}>
-                Xoá
-              </button>
-            </div>
-          ))}
-          <div>
-            <button className="btn sm" onClick={() => setD({ ...d, rules: [...d.rules, { type: "text_present", value: "" }] })}>
-              Thêm điều kiện
-            </button>
-          </div>
         </div>
         <div className="form-grid" style={{ marginTop: 14 }}>
           <Field label="Biến secret của environment" hint="Tên biến input lấy giá trị từ kho secret (vd: password)">
@@ -207,16 +153,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
                 </button>
               </>
             )}
-            <button
-              className="btn"
-              disabled={busy || !env.runner_auth_ready}
-              onClick={async () => {
-                const r = await run(() => api.checkRunnerAuth(env.environment_id));
-                if (r) setAuthCheck(r);
-              }}
-            >
-              Kiểm tra runner auth
-            </button>
             {env.runner_auth_ready && (
               <button
                 className="btn"
@@ -230,11 +166,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
               </button>
             )}
           </div>
-          {authCheck && (
-            <div className={authCheck.ok ? "info-box" : "error-box"} style={{ marginTop: 10 }}>
-              {authCheck.ok ? `Runner đã đăng nhập (${authCheck.final_url ?? ""})` : `${authCheck.error_code}: ${authCheck.error_message}`}
-            </div>
-          )}
         </Panel>
       )}
 
@@ -262,7 +193,7 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
             </button>
             {pre && <Badge status={pre.status} />}
           </div>
-          {pre && <div className={pre.status === "CONNECTED" ? "info-box" : pre.status === "AUTH_REQUIRED" ? "warn-box" : "error-box"} style={{ marginTop: 10 }}>{pre.message}</div>}
+          {pre && <div className={pre.status === "CONNECTED" ? "info-box" : "error-box"} style={{ marginTop: 10 }}>{pre.message}</div>}
         </Panel>
       )}
     </div>
@@ -415,7 +346,7 @@ export function EnvironmentsPage() {
     <div>
       <div className="page-head">
         <h1>Environment</h1>
-        <p>Website test, phép kiểm tra đăng nhập, runner auth và Chrome profile cho Training.</p>
+        <p>Website test, runner auth và Chrome profile cho Training.</p>
       </div>
       <div className="split">
         <div className="stack">

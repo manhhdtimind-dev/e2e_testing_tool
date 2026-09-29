@@ -1,8 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import type { AuthCheck, BrowserProfile, Environment } from "../../shared/types";
-import { authCheckConfigured } from "../../core/authCheck";
+import type { BrowserProfile, Environment } from "../../shared/types";
 import { normalizeDomains } from "../../core/domains";
 import type { AppContext } from "../context";
 import { AppError, newId, now } from "../util";
@@ -13,7 +12,6 @@ export interface EnvironmentInput {
   name: string;
   base_url: string;
   allowed_domains: string[];
-  auth_check: AuthCheck;
   secret_fields: string[];
 }
 
@@ -43,10 +41,6 @@ export function saveEnvironment(ctx: AppContext, input: EnvironmentInput): Envir
     name: input.name.trim(),
     base_url: input.base_url.trim(),
     allowed_domains: normalizeDomains(input.base_url, input.allowed_domains),
-    auth_check: {
-      check_url: input.auth_check.check_url.trim(),
-      rules: input.auth_check.rules.filter((r) => r.value.trim()).map((r) => ({ type: r.type, value: r.value.trim() })),
-    },
     runner_auth_ref: existing?.runner_auth_ref ?? null,
     runner_auth_updated_at: existing?.runner_auth_updated_at ?? null,
     secret_fields: [...new Set(input.secret_fields.map((s) => s.trim()).filter(Boolean))],
@@ -58,15 +52,8 @@ export function saveEnvironment(ctx: AppContext, input: EnvironmentInput): Envir
   ctx.repo.audit(existing ? "environment.update" : "environment.create", "environment", env.environment_id, {
     base_url: env.base_url,
     allowed_domains: env.allowed_domains,
-    auth_check: env.auth_check,
   });
   return env;
-}
-
-export function requireAuthCheck(env: Environment) {
-  if (!authCheckConfigured(env.auth_check)) {
-    throw new AppError(`Environment "${env.name}" chưa cấu hình phép kiểm tra đăng nhập (auth_check)`);
-  }
 }
 
 export function setEnvironmentSecret(ctx: AppContext, envId: string, field: string, value: string) {

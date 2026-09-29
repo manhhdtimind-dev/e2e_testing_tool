@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkApprove, isVersionSelectable, nextVersionNo } from "../src/core/rules";
 import { classifyError, marksVersionBroken } from "../src/core/errorClassifier";
-import { evaluateAuthRules } from "../src/core/authCheck";
 import { allowedOriginsArg, isUrlAllowed, normalizeDomains } from "../src/core/domains";
 import { maskInput, validateInput } from "../src/core/inputValidation";
 import type { CandidateRevision, ScriptVersion, TrialRun } from "../src/shared/types";
@@ -72,22 +71,7 @@ describe("error classification", () => {
   });
 });
 
-describe("auth rules & domains & input", () => {
-  it("evaluates auth rules", () => {
-    const facts = { url: "https://app.test/dashboard", text: "Xin chào Admin", cssPresent: { "#logout": true } };
-    expect(
-      evaluateAuthRules(
-        [
-          { type: "url_not_contains", value: "/login" },
-          { type: "text_present", value: "xin chào" },
-          { type: "css_present", value: "#logout" },
-        ],
-        facts,
-      ),
-    ).toEqual([]);
-    expect(evaluateAuthRules([{ type: "url_contains", value: "/admin" }], facts)).toHaveLength(1);
-  });
-
+describe("domains & input", () => {
   it("checks domains", () => {
     const d = normalizeDomains("http://localhost:4567/app", ["*.example.com", "https://cdn.test/x"]);
     expect(d).toEqual(["localhost", "*.example.com", "cdn.test"]);

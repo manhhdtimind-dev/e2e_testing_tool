@@ -4,8 +4,7 @@ import { join } from "node:path";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import type { RunnerJob, RunnerMessage } from "../shared/runnerJob";
 import type { RunnerResult, StepLog } from "../shared/types";
-import { evaluateAuthRules, describeRule, resolveCheckUrl } from "../core/authCheck";
-import { AUTH_REQUIRED_MARKER, DOMAIN_BLOCKED_MARKER, RUN_TIMEOUT_MARKER, classifyError } from "../core/errorClassifier";
+import { DOMAIN_BLOCKED_MARKER, RUN_TIMEOUT_MARKER, classifyError } from "../core/errorClassifier";
 import { isUrlAllowed } from "../core/domains";
 import { instrument, redact, type Recorder } from "./instrument";
 
@@ -31,36 +30,6 @@ function lockModules(compiledPath: string) {
     }
     return original.call(this, request, parent, ...rest);
   };
-}
-
-async function collectFacts(page: Page, job: RunnerJob) {
-  const url = page.url();
-  let text = "";
-  try {
-    text = await page.locator("body").innerText({ timeout: 5000 });
-  } catch {
-    text = "";
-  }
-  const cssPresent: Record<string, boolean> = {};
-  for (const rule of job.authCheck.rules.filter((r) => r.type === "css_present")) {
-    cssPresent[rule.value] = await page
-      .locator(rule.value)
-      .first()
-      .isVisible()
-      .catch(() => false);
-  }
-  return { url, text, cssPresent };
-}
-
-async function verifyAuth(page: Page, job: RunnerJob): Promise<string | null> {
-  const checkUrl = resolveCheckUrl(job.baseUrl, job.authCheck);
-  await page.goto(checkUrl, { waitUntil: "domcontentloaded", timeout: job.navigationTimeoutMs });
-  await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
-  if (job.authCheck.rules.some((r) => r.type !== "url_contains" && r.type !== "url_not_contains")) {
-    await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
-  }
-  const failed = evaluateAuthRules(job.authCheck.rules, await collectFacts(page, job));
-  return failed.length ? failed.map(describeRule).join("; ") : null;
 }
 
 async function execute(job: RunnerJob): Promise<RunnerResult> {
@@ -138,10 +107,6 @@ async function execute(job: RunnerJob): Promise<RunnerResult> {
     page = await context.newPage();
     page.setDefaultTimeout(job.actionTimeoutMs);
     page.setDefaultNavigationTimeout(job.navigationTimeoutMs);
-
-    const authFailure = await verifyAuth(page, job);
-    if (authFailure) return fail("AUTH_REQUIRED", `${AUTH_REQUIRED_MARKER}: runner chưa đăng nhập (${authFailure})`);
-    if (job.kind === "authcheck") return finish(true);
   } catch (e) {
     const msg = (e as Error).message ?? String(e);
     if (blockedUrl) return fail("DOMAIN_BLOCKED", `${DOMAIN_BLOCKED_MARKER}: ${blockedUrl}`);
@@ -150,8 +115,8 @@ async function execute(job: RunnerJob): Promise<RunnerResult> {
 
   let runFn: (page: Page, input: unknown) => Promise<unknown>;
   try {
-    lockModules(job.compiledPath!);
-    const mod = require(job.compiledPath!);
+    lockModules(job.compiledPath);
+    const mod = require(job.compiledPath);
     runFn = mod.run;
     if (typeof runFn !== "function") throw new Error("Script không export hàm run(page, input)");
   } catch (e) {
@@ -173,14 +138,7 @@ async function execute(job: RunnerJob): Promise<RunnerResult> {
     clearTimeout(timer);
     const err = e as Error;
     if (blockedUrl) return fail("DOMAIN_BLOCKED", `${DOMAIN_BLOCKED_MARKER}: điều hướng tới domain không được phép ${blockedUrl}\n${err.message}`);
-    let code = classifyError(err);
-    if (code !== "AUTH_REQUIRED" && page) {
-      const urlRules = job.authCheck.rules.filter((r) => r.type === "url_contains" || r.type === "url_not_contains");
-      if (urlRules.length && evaluateAuthRules(urlRules, { url: page.url(), text: "", cssPresent: {} }).length > 0) {
-        code = "AUTH_REQUIRED";
-      }
-    }
-    return fail(code, `${err.name ?? "Error"}: ${err.message}`);
+    return fail(classifyError(err), `${err.name ?? "Error"}: ${err.message}`);
   }
 }
 

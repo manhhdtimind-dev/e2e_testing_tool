@@ -310,7 +310,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
             Kiểm tra preflight
           </button>
         </div>
-        {pre && <div className={pre.status === "CONNECTED" ? "info-box" : pre.status === "AUTH_REQUIRED" ? "warn-box" : "error-box"} style={{ marginTop: 10 }}>{pre.message}</div>}
+        {pre && <div className={pre.status === "CONNECTED" ? "info-box" : "error-box"} style={{ marginTop: 10 }}>{pre.message}</div>}
         {agentSwitch && (
           <div className="warn-box" style={{ marginTop: 10 }}>
             Script đang dùng {AGENT_LABEL[activeThread!.provider]}. Gửi prompt với {AGENT_LABEL[agent]} sẽ tạo provider thread mới từ test case, candidate, prompt và trial đã lưu. Candidate/version cũ giữ nguyên và cần trial lại trước khi Approve.

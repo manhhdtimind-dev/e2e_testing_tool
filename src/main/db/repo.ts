@@ -22,7 +22,7 @@ interface TableSpec {
 
 const TABLES = {
   test_cases: { name: "test_cases", pk: ["test_id"], json: ["steps", "input_schema", "sample_input", "raw_import"] },
-  environments: { name: "environments", pk: ["environment_id"], json: ["allowed_domains", "auth_check", "secret_fields"] },
+  environments: { name: "environments", pk: ["environment_id"], json: ["allowed_domains", "secret_fields"] },
   browser_profiles: { name: "browser_profiles", pk: ["browser_profile_id"], json: [] },
   scripts: { name: "scripts", pk: ["script_id"], json: [] },
   provider_threads: { name: "provider_threads", pk: ["id"], json: [] },

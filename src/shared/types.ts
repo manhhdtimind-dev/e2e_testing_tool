@@ -28,24 +28,11 @@ export interface TestCase {
   updated_at: string;
 }
 
-export type AuthRuleType = "url_contains" | "url_not_contains" | "text_present" | "css_present";
-
-export interface AuthRule {
-  type: AuthRuleType;
-  value: string;
-}
-
-export interface AuthCheck {
-  check_url: string;
-  rules: AuthRule[];
-}
-
 export interface Environment {
   environment_id: string;
   name: string;
   base_url: string;
   allowed_domains: string[];
-  auth_check: AuthCheck;
   runner_auth_ref: string | null;
   runner_auth_updated_at: string | null;
   secret_fields: string[];
@@ -214,10 +201,9 @@ export interface AuditEntry {
 export type PreflightStatus = "CONNECTED" | "AUTH_REQUIRED" | "PROFILE_UNAVAILABLE";
 
 export interface PreflightResult {
-  status: PreflightStatus;
+  status: Exclude<PreflightStatus, "AUTH_REQUIRED">;
   message: string;
   url?: string;
-  failed_rules?: AuthRule[];
 }
 
 export interface StepLog {
