@@ -7,7 +7,7 @@ import { fromArtifactRef, paths } from "./paths";
 import { AppError } from "./util";
 import { updateSettings } from "./services/settings";
 import { secretKeys } from "./services/secrets";
-import { confirmImport, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
+import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
 import { writeSampleCsv, writeSampleXlsx } from "./services/sampleTemplate";
 import {
   deleteProfile,
@@ -45,7 +45,7 @@ import {
   readArtifactText,
   type HistoryFilter,
 } from "./services/history";
-import { cancelTraining, saveManualCandidate, startTraining, type StartTrainingRequest } from "./training/orchestrator";
+import { cancelTraining, isScriptTraining, saveManualCandidate, startTraining, type StartTrainingRequest } from "./training/orchestrator";
 import { runPreflight } from "./training/preflight";
 import { getIntegrationStatus, runIntegrationCheck } from "./training/integrationCheck";
 export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
@@ -127,7 +127,8 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     },
     confirmImport: (fileName: string, project: ProjectTarget, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, project, cases),
     saveTestCase: (input: TestCaseInput) => saveTestCase(ctx, input),
-    deleteTestCase: (testId: string) => deleteTestCase(ctx, testId),
+    testCaseDeleteImpact: (testId: string) => deleteImpact(ctx, testId),
+    deleteTestCase: (testId: string) => deleteTestCase(ctx, testId, isScriptTraining),
 
     // ---------- environments & profiles ----------
     listEnvironments: () =>

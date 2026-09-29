@@ -308,6 +308,27 @@ try {
   await nav("Cài đặt");
   await win.getByText("Kiểm tra tích hợp agent").waitFor();
   await shot("11-settings");
+
+  // ---------- delete an approved test case with its history ----------
+  await nav("Test Cases");
+  await win.getByLabel("Lọc theo dự án").selectOption({ label: "Tất cả dự án (2)" });
+  await win.locator(".list li", { hasText: "TC_CAMP_001" }).click();
+  await win.locator(".panel .row.end").getByRole("button", { name: "Xoá", exact: true }).click();
+  const del = win.locator(".modal", { hasText: "Xoá test case TC_CAMP_001" });
+  await del.waitFor();
+  const delText = await del.innerText();
+  check(delText.includes("2 version (1 đang APPROVED)") && delText.includes("2 lượt Testing"), "Xoá: modal liệt kê version APPROVED và lịch sử Testing sẽ bị xoá");
+  const delBtn = del.getByRole("button", { name: "Xoá vĩnh viễn" });
+  check(await delBtn.isDisabled(), "Xoá: phải nhập test_id trước khi xoá");
+  await shot("12-delete-approved");
+  await del.getByRole("textbox").fill("TC_CAMP_001");
+  await delBtn.click();
+  await del.waitFor({ state: "detached" });
+  const remaining = await win.locator(".list li").allInnerTexts();
+  check(remaining.length === 1 && remaining[0].includes("TC_CAMP_002"), "Xoá: test case đã approved biến mất khỏi danh sách");
+  await nav("History");
+  await win.waitForTimeout(500);
+  check((await win.locator("table.t tbody tr").count()) === 0, "Xoá: lịch sử Testing của test case cũng bị xoá");
 } catch (e) {
   failures++;
   console.error("FAIL ", e);

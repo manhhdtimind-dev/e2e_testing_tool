@@ -5,6 +5,7 @@ import { Badge, Modal, Panel, fmtTime, groupLabel, useAction, useToast } from ".
 
 type CaseRow = ApiResult<"listTestCases">[number];
 type ProjectRow = ApiResult<"listProjects">[number];
+type DeleteImpact = ApiResult<"testCaseDeleteImpact">;
 
 const VAR_RE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 const NEW_PROJECT = "__new__";
@@ -364,6 +365,65 @@ function ImportModal({
   );
 }
 
+function DeleteModal({ testId, title, impact, onClose, onDeleted }: { testId: string; title: string; impact: DeleteImpact; onClose: () => void; onDeleted: () => void }) {
+  const [typed, setTyped] = useState("");
+  const { run, busy } = useAction();
+  const items = [
+    impact.versions && `${impact.versions} version${impact.approved_versions ? ` (${impact.approved_versions} đang APPROVED)` : ""}`,
+    impact.test_runs && `${impact.test_runs} lượt Testing (lịch sử ở History)`,
+    impact.trials && `${impact.trials} lượt Trial`,
+    impact.candidates && `${impact.candidates} candidate`,
+    impact.attempts && `${impact.attempts} lượt Training`,
+  ].filter(Boolean) as string[];
+  const mustType = impact.versions > 0 || impact.test_runs > 0;
+  return (
+    <Modal
+      title={`Xoá test case ${testId}`}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Huỷ
+          </button>
+          <button
+            className="btn bad"
+            disabled={busy || (mustType && typed.trim() !== testId)}
+            onClick={async () => {
+              const r = await run(() => api.deleteTestCase(testId), `Đã xoá test case ${testId}`);
+              if (r) onDeleted();
+            }}
+          >
+            Xoá vĩnh viễn
+          </button>
+        </>
+      }
+    >
+      <div className="stack">
+        <div>
+          <strong>{testId}</strong> — {title}
+        </div>
+        {items.length ? (
+          <div className="error-box">
+            Xoá vĩnh viễn cùng với:
+            {"\n"}
+            {items.map((i) => `• ${i}`).join("\n")}
+            {"\n"}• script, ảnh/trace/log của các lượt chạy và workspace Training
+            {"\n\n"}Không thể hoàn tác. Nhật ký audit vẫn được giữ.
+          </div>
+        ) : (
+          <div className="muted">Test case chưa có Training hay lịch sử chạy nào.</div>
+        )}
+        {mustType && (
+          <label className="field">
+            <span>Nhập "{testId}" để xác nhận</span>
+            <input type="text" className="mono" value={typed} autoFocus onChange={(e) => setTyped(e.target.value)} />
+          </label>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function CaseEditor({
   draft,
   onChange,
@@ -433,6 +493,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
   const [draft, setDraft] = useState<Draft | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [importStep, setImportStep] = useState<{ step: "setup"; target: ProjectTarget | null } | { step: "preview"; preview: ImportPreview; target: ProjectTarget } | null>(null);
+  const [deleting, setDeleting] = useState<{ testId: string; title: string; impact: DeleteImpact } | null>(null);
   const [filter, setFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState<string>(() => readFilter().project);
   const [groupFilter, setGroupFilter] = useState<string>(() => readFilter().group);
@@ -649,14 +710,10 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
               {!isNew && current && (
                 <button
                   className="btn"
-                  disabled={busy || !!current.script_id}
-                  title={current.script_id ? "Đã có lịch sử Training" : ""}
+                  disabled={busy}
                   onClick={async () => {
-                    if (!confirm(`Xoá test case ${current.test_id}?`)) return;
-                    await run(() => api.deleteTestCase(current.test_id), "Đã xoá test case");
-                    setSelected(null);
-                    setDraft(null);
-                    void load();
+                    const impact = await run(() => api.testCaseDeleteImpact(current.test_id));
+                    if (impact) setDeleting({ testId: current.test_id, title: current.title, impact });
                   }}
                 >
                   Xoá
@@ -696,6 +753,18 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
           <div className="panel empty">Chọn một test case để xem hoặc sửa.</div>
         )}
       </div>
+      {deleting && (
+        <DeleteModal
+          {...deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={async () => {
+            setDeleting(null);
+            setSelected(null);
+            setDraft(null);
+            await load();
+          }}
+        />
+      )}
       {importStep?.step === "setup" && (
         <ImportSetupModal
           projects={projects}

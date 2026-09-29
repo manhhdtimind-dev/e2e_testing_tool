@@ -36,6 +36,8 @@ Bấm Import mở modal chọn **dự án** có sẵn hoặc nhập tên dự á
 dự án mới chỉ được tạo khi xác nhận lưu). **Nhóm** = tên sheet: mọi sheet có cột `test_id` ở dòng 1 là một nhóm, sheet khác bị bỏ qua;
 `.csv`/`.yaml` là một nhóm theo tên file. `test_id` duy nhất trên mọi dự án: import bị chặn nếu `test_id` đã thuộc dự án khác,
 cùng dự án thì ghi đè. Danh sách Test Cases lọc theo dự án, nhóm và text. Test case có trước khi thêm dự án được đưa vào "Dự án mặc định".
+Xoá test case là xoá hẳn: cùng script, lượt Training, candidate, Trial, version (kể cả APPROVED), test run và thư mục artifacts/workspace;
+modal liệt kê số lượng, bắt nhập lại `test_id` khi có version hoặc lịch sử Testing; bị chặn khi đang Training/Trial/Testing; audit log được giữ.
 
 **Preflight:** app tự mở MCP client tới Playwright MCP (extension + profile dir đã chọn), navigate `base_url`,
 trả `CONNECTED | PROFILE_UNAVAILABLE`. Không có bước kiểm tra đăng nhập (`auth_check`) — đã bỏ theo quyết định của người dùng;

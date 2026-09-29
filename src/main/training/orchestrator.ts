@@ -48,6 +48,8 @@ const busyProfiles = new Set<string>();
 const busyScripts = new Set<string>();
 const controllers = new Map<string, AbortController>();
 
+export const isScriptTraining = (scriptId: string) => busyScripts.has(scriptId);
+
 export function trainingSchemaIssues(tc: TestCase, sample: InputValues): string[] {
   const schema = { fields: tc.input_schema.fields.filter((f) => !f.secret).map((f) => ({ ...f })) };
   const values = Object.fromEntries(Object.entries(sample).filter(([k]) => schema.fields.some((f) => f.name === k)));

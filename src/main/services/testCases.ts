@@ -1,10 +1,12 @@
+import { rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { basename, extname } from "node:path";
+import { basename, extname, join } from "node:path";
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
 import type { ImportPreview, InputSchema, InputValues, ParsedTestCase, Project, ProjectTarget, TestCase } from "../../shared/types";
 import { checkTestCaseDraft, parseRows, parseSheets, parseYamlCases, type SheetData } from "../../core/parser";
 import type { AppContext } from "../context";
+import { paths } from "../paths";
 import { AppError, newId, now } from "../util";
 
 const sameName = (a: string, b: string) => a.trim().toLocaleLowerCase("vi") === b.trim().toLocaleLowerCase("vi");
@@ -176,10 +178,88 @@ export function confirmImport(ctx: AppContext, fileName: string, target: Project
   return result;
 }
 
-export function deleteTestCase(ctx: AppContext, testId: string) {
-  if (ctx.repo.scripts.where("test_id = ?", testId).length > 0) {
-    throw new AppError("Test case đã có script/lịch sử Training, không thể xoá");
+export interface DeleteImpact {
+  attempts: number;
+  candidates: number;
+  trials: number;
+  versions: number;
+  approved_versions: number;
+  test_runs: number;
+}
+
+function relatedIds(ctx: AppContext, testId: string) {
+  const script = ctx.repo.scripts.where("test_id = ?", testId)[0];
+  const ids = (sql: string, ...p: unknown[]) => ctx.repo.db.all<{ id: string }>(sql, ...p).map((r) => r.id);
+  const sid = script?.script_id ?? "";
+  return {
+    script,
+    attempts: ids("SELECT attempt_id AS id FROM training_attempts WHERE script_id = ?", sid),
+    candidates: ids("SELECT candidate_id AS id FROM candidates WHERE script_id = ?", sid),
+    trials: ids("SELECT t.trial_id AS id FROM trials t JOIN candidates c ON c.candidate_id = t.candidate_id WHERE c.script_id = ?", sid),
+    runs: ids("SELECT run_id AS id FROM test_runs WHERE test_id = ?", testId),
+  };
+}
+
+export function deleteImpact(ctx: AppContext, testId: string): DeleteImpact {
+  const r = relatedIds(ctx, testId);
+  const versions = r.script ? ctx.repo.versions.where("script_id = ?", r.script.script_id) : [];
+  return {
+    attempts: r.attempts.length,
+    candidates: r.candidates.length,
+    trials: r.trials.length,
+    versions: versions.length,
+    approved_versions: versions.filter((v) => v.status === "APPROVED").length,
+    test_runs: r.runs.length,
+  };
+}
+
+/**
+ * Permanently deletes the test case with its script, training attempts, candidates, trials, versions,
+ * test runs and their artifact folders. The audit log is kept.
+ */
+export function deleteTestCase(ctx: AppContext, testId: string, isTraining: (scriptId: string) => boolean): DeleteImpact & { leftover_dirs: number } {
+  if (!ctx.repo.testCases.get(testId)) throw new AppError("Không tìm thấy test case");
+  const r = relatedIds(ctx, testId);
+  const sid = r.script?.script_id;
+  if (sid && isTraining(sid)) throw new AppError("Test case đang có lượt Training chạy; đợi xong hoặc huỷ trước khi xoá");
+  const running =
+    ctx.repo.db.get<{ n: number }>(
+      `SELECT (SELECT COUNT(*) FROM trials t JOIN candidates c ON c.candidate_id = t.candidate_id WHERE c.script_id = ? AND t.status IN ('QUEUED','RUNNING'))
+            + (SELECT COUNT(*) FROM test_runs WHERE test_id = ? AND execution_status IN ('QUEUED','RUNNING')) AS n`,
+      sid ?? "",
+      testId,
+    )?.n ?? 0;
+  if (running > 0) throw new AppError("Test case đang có Trial/Testing chạy; đợi xong rồi xoá");
+  const impact = deleteImpact(ctx, testId);
+
+  ctx.repo.db.tx(() => {
+    if (sid) {
+      ctx.repo.db.run("DELETE FROM trials WHERE candidate_id IN (SELECT candidate_id FROM candidates WHERE script_id = ?)", sid);
+      ctx.repo.db.run("DELETE FROM versions WHERE script_id = ?", sid);
+      ctx.repo.db.run("DELETE FROM candidates WHERE script_id = ?", sid);
+      ctx.repo.db.run("DELETE FROM training_attempts WHERE script_id = ?", sid);
+      ctx.repo.db.run("DELETE FROM provider_threads WHERE script_id = ?", sid);
+    }
+    ctx.repo.db.run("DELETE FROM test_runs WHERE test_id = ?", testId);
+    if (sid) ctx.repo.scripts.delete(sid);
+    ctx.repo.testCases.delete(testId);
+  });
+
+  const dirs = [
+    ...r.attempts.map((id) => join(paths().artifacts, "attempts", id)),
+    ...r.trials.map((id) => join(paths().artifacts, "trials", id)),
+    ...r.runs.map((id) => join(paths().artifacts, "runs", id)),
+    ...(sid ? [join(paths().workspaces, sid)] : []),
+  ];
+  let leftover = 0;
+  for (const d of dirs) {
+    try {
+      rmSync(d, { recursive: true, force: true, maxRetries: 2 });
+    } catch {
+      // A browser kept open after a Trial/Testing may still lock files; retention cleanup removes them later.
+      leftover++;
+    }
   }
-  ctx.repo.testCases.delete(testId);
-  ctx.repo.audit("testcase.delete", "test_case", testId);
+  ctx.repo.audit("testcase.delete", "test_case", testId, { ...impact, script_id: sid ?? null, leftover_dirs: leftover });
+  return { ...impact, leftover_dirs: leftover };
 }
