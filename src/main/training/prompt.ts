@@ -65,6 +65,7 @@ export async function run(page: Page, input: Input): Promise<void> {
    - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts. Never call page.pause() — the runner is unattended.
    - Do not log in inside the script (the runner has its own authenticated session). Only import from "@playwright/test". No fs, process, require, eval or network calls.
    - Add a comment \`// Step N: <manual step>\` before the code of each manual step.
+   - The Trial/Testing runner captures nothing by itself. Record the result explicitly with \`await page.screenshot()\` (optionally \`{ fullPage: true }\`) — at least once after the last step, and wherever else the steps ask to capture. Never pass a \`path\`; the runner decides where evidence is stored.
 4. At the end call browser_take_screenshot once to capture the final state.
 5. Stop immediately (without guessing) if: a login page or expired session appears → status "auth_required"; a step is ambiguous, impossible, or needs a domain outside the allowed list → status "blocked" with the reason.
 6. Finish your reply with ONE line of JSON and nothing after it:
@@ -110,7 +111,7 @@ ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}\n` : ""}
 ## User request
 ${opts.userPrompt.trim() || "Fix the problems above so the script runs end-to-end."}
 
-You may use the Playwright MCP tools again to re-inspect the pages (budget ${opts.maxActions} browser actions). Keep all script rules from before (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits, only @playwright/test imports, // Step N comments). Take one final browser_take_screenshot.
+You may use the Playwright MCP tools again to re-inspect the pages (budget ${opts.maxActions} browser actions). Keep all script rules from before (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits, only @playwright/test imports, // Step N comments, explicit await page.screenshot() for evidence). Take one final browser_take_screenshot.
 Finish with ONE line of JSON: {"status":"done"|"blocked"|"auth_required","reason":"...","steps_done":[...]}`;
 }
 

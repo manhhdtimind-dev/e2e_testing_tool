@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AgentProvider, AuditEntry } from "../../shared/types";
 import { api, type ApiResult } from "../api";
-import { ArtifactImage, Badge, CodeView, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
+import { Badge, CodeView, EvidenceShots, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
 
 type HistoryRow = ApiResult<"queryHistory">[number];
 type TrialRow = ApiResult<"listTrialHistory">[number];
@@ -220,7 +220,7 @@ export function HistoryPage({ onOpenTraining }: { onOpenTraining: (testId: strin
               </Panel>
               <Panel title="Evidence">
                 <div className="col" style={{ gap: 12 }}>
-                  <ArtifactImage refPath={selected.evidence_refs.screenshot} alt="Screenshot cuối" />
+                  <EvidenceShots evidence={selected.evidence_refs} what="test run" />
                   <StepsTable refPath={selected.evidence_refs.steps} />
                 </div>
               </Panel>

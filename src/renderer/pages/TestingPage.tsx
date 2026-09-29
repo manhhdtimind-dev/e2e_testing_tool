@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { InputValues, TestRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { ArtifactImage, Badge, InputForm, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
+import { Badge, EvidenceShots, InputForm, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
 import type { TrainingIntent } from "./TrainingPage";
 
 type CaseRow = ApiResult<"listTestCases">[number];
@@ -230,7 +230,7 @@ export function TestingPage({ intent, onSendToTraining }: { intent: { test_id: s
             </Panel>
             <Panel title="Evidence">
               <div className="col" style={{ gap: 12 }}>
-                <ArtifactImage refPath={selectedRun.evidence_refs.screenshot} alt="Screenshot cuối của test run" />
+                {selectedRun.finished_at && <EvidenceShots evidence={selectedRun.evidence_refs} what="test run" />}
                 <StepsTable refPath={selectedRun.evidence_refs.steps} />
                 {selectedRun.evidence_refs.trace && (
                   <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => api.revealArtifact(selectedRun.evidence_refs.trace!)}>

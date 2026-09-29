@@ -98,7 +98,9 @@ async function execute(
   const evidence: Evidence = {
     steps: toArtifactRef(join(dir, "steps.json")),
     log: toArtifactRef(join(dir, "result.json")),
-    ...(result.screenshot ? { screenshot: toArtifactRef(result.screenshot) } : {}),
+    ...(result.screenshots.length
+      ? { screenshot: toArtifactRef(result.screenshots.at(-1)!), screenshots: result.screenshots.map((p) => toArtifactRef(p)) }
+      : {}),
     ...(result.trace ? { trace: toArtifactRef(result.trace) } : {}),
   };
   return { result, evidence };

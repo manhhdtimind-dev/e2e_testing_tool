@@ -57,26 +57,24 @@ function lockModules(compiledPath: string) {
 async function execute(job: RunnerJob): Promise<RunnerResult> {
   const t0 = Date.now();
   const steps: StepLog[] = [];
-  const rec: Recorder = { steps, secrets: job.secretValues, onStep: (step) => send({ type: "step", step }) };
+  const result: RunnerResult = { ok: false, error_code: null, error_message: null, steps, screenshots: [], trace: null, duration_ms: 0, final_url: null };
+  let shotNo = 0;
+  const rec: Recorder = {
+    steps,
+    secrets: job.secretValues,
+    onStep: (step) => send({ type: "step", step }),
+    nextScreenshotPath: () => join(job.runDir, `screenshot-${String(++shotNo).padStart(2, "0")}.png`),
+    onScreenshot: (path) => result.screenshots.push(path),
+  };
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
   let page: Page | null = null;
   let blockedUrl: string | null = null;
   let tracing = false;
-  const result: RunnerResult = { ok: false, error_code: null, error_message: null, steps, screenshot: null, trace: null, duration_ms: 0, final_url: null };
 
   const finish = async (ok: boolean) => {
     result.ok = ok;
-    if (page) {
-      result.final_url = page.url();
-      try {
-        const shot = join(job.runDir, "final.png");
-        await page.screenshot({ path: shot, timeout: 10_000 });
-        result.screenshot = shot;
-      } catch {
-        // page may already be closed
-      }
-    }
+    if (page && !page.isClosed()) result.final_url = page.url();
     if (context && tracing) {
       try {
         if (!ok || job.traceOnSuccess) {
@@ -117,7 +115,7 @@ async function execute(job: RunnerJob): Promise<RunnerResult> {
       storageState: job.storageStatePath,
       viewport: { width: 1366, height: 820 },
     });
-    await context.tracing.start({ screenshots: true, snapshots: true });
+    await context.tracing.start({ screenshots: false, snapshots: true });
     tracing = true;
     await context.route("**/*", (route) => {
       const req = route.request();
@@ -175,7 +173,7 @@ process.on("message", async (job: RunnerJob) => {
       error_code: "EXCEPTION",
       error_message: String((e as Error).stack ?? e),
       steps: [],
-      screenshot: null,
+      screenshots: [],
       trace: null,
       duration_ms: 0,
       final_url: null,

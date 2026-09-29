@@ -39,7 +39,7 @@ export function setRunnerConcurrency(limit: number) {
 }
 
 function failure(message: string): RunnerResult {
-  return { ok: false, error_code: "EXCEPTION", error_message: message, steps: [], screenshot: null, trace: null, duration_ms: 0, final_url: null };
+  return { ok: false, error_code: "EXCEPTION", error_message: message, steps: [], screenshots: [], trace: null, duration_ms: 0, final_url: null };
 }
 
 /**

@@ -42,6 +42,9 @@ export interface Recorder {
   steps: StepLog[];
   onStep?: (s: StepLog) => void;
   secrets: string[];
+  /** Where the next script screenshot is written; any path given by the script is replaced. */
+  nextScreenshotPath?: () => string;
+  onScreenshot?: (path: string) => void;
 }
 
 /**
@@ -63,8 +66,16 @@ export function instrument<T extends object>(target: T, label: string, rec: Reco
           return out && typeof out === "object" && !(out instanceof Promise) ? instrument(out, childLabel, rec) : out;
         };
       }
-      if (ACTIONS.has(prop)) {
+      const isScreenshot = prop === "screenshot" && !!rec.nextScreenshotPath;
+      if (ACTIONS.has(prop) || isScreenshot) {
         return async (...args: unknown[]) => {
+          let callArgs = args.map(unwrap);
+          let shotPath: string | null = null;
+          if (isScreenshot) {
+            shotPath = rec.nextScreenshotPath!();
+            const opts = callArgs[0] && typeof callArgs[0] === "object" ? (callArgs[0] as Record<string, unknown>) : {};
+            callArgs = [{ ...opts, path: shotPath }];
+          }
           const step: StepLog = {
             index: rec.steps.length + 1,
             action: prop,
@@ -77,7 +88,9 @@ export function instrument<T extends object>(target: T, label: string, rec: Reco
           rec.steps.push(step);
           const t0 = Date.now();
           try {
-            return await value.apply(obj, args.map(unwrap));
+            const out = await value.apply(obj, callArgs);
+            if (shotPath) rec.onScreenshot?.(shotPath);
+            return out;
           } catch (e) {
             step.ok = false;
             step.error = redact(String((e as Error).message ?? e), rec.secrets).slice(0, 2000);

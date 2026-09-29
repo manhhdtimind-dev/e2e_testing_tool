@@ -1,7 +1,7 @@
 // End-to-end check of the Trial/Testing runner against the demo site (no AI involved).
 // Usage: npm run e2e:runner
 import { fork, spawn } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,7 @@ export async function run(page: Page, input: { campaign_name: string; objective:
   // Step 5: Click Save
   await page.getByRole("button", { name: "Save" }).click({ timeout: 3000 });
   await expect(page.getByRole("heading", { name: "Campaign List" })).toBeVisible();
+  await page.screenshot();
 }
 `;
 
@@ -55,13 +56,13 @@ try {
   await b.close();
 
   const work = mkdtempSync(join(tmpdir(), "e2e-runner-check-"));
-  const compiled = ts.transpileModule(CANDIDATE, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
+  const compile = (src) => ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
 
-  async function runJob(name, input, { withAuth = true, fsRestricted = true, keepOpen = false, onChild } = {}) {
+  async function runJob(name, input, { withAuth = true, fsRestricted = true, keepOpen = false, onChild, source = CANDIDATE } = {}) {
     const runDir = join(work, name);
     mkdirSync(runDir, { recursive: true });
     const compiledPath = join(runDir, "script.cjs");
-    writeFileSync(compiledPath, compiled);
+    writeFileSync(compiledPath, compile(source));
     let statePath = null;
     if (withAuth) {
       statePath = join(runDir, ".auth-state.json");
@@ -97,7 +98,14 @@ try {
   const r1 = await runJob("trial", { campaign_name: "Summer Sale 2026", objective: "Sales" });
   check(r1.ok, `Trial PASSED (${r1.error_code ?? ""} ${r1.error_message ?? ""})`);
   check(r1.steps.length >= 5, `step log recorded (${r1.steps.length} steps)`);
-  check(!!r1.screenshot, "final screenshot saved");
+  check(r1.screenshots.length === 1 && dirname(r1.screenshots[0]) === r1.runDir && existsSync(r1.screenshots[0]), "screenshot taken by the script is saved in the run dir");
+  check(r1.steps.at(-1)?.action === "screenshot", "script screenshot recorded as a step");
+
+  const noShot = await runJob("no-screenshot", { campaign_name: "No Shot", objective: "Sales" }, { source: CANDIDATE.replace("  await page.screenshot();\n", "") });
+  check(noShot.ok && noShot.screenshots.length === 0 && !readdirSync(noShot.runDir).some((f) => f.endsWith(".png")), "runner takes no screenshot of its own");
+
+  const ownPath = await runJob("own-path", { campaign_name: "Own Path", objective: "Sales" }, { source: CANDIDATE.replace("await page.screenshot();", 'await page.screenshot({ path: "../outside.png", fullPage: true });') });
+  check(ownPath.ok && ownPath.screenshots.length === 1 && dirname(ownPath.screenshots[0]) === ownPath.runDir && !existsSync(join(work, "outside.png")), "a path given by the script is redirected into the run dir");
 
   let held;
   const rk = await runJob("keep-open", { campaign_name: "Keep Open", objective: "Sales" }, { keepOpen: true, onChild: (c) => (held = c) });
@@ -119,6 +127,7 @@ try {
   const r4 = await runJob("broken", { campaign_name: "Y", objective: "Sales" });
   check(!r4.ok && r4.error_code === "LOCATOR", `renamed button -> LOCATOR error (${r4.error_code}: ${(r4.error_message ?? "").split("\n")[0]})`);
   check(!!r4.trace, "trace saved on failure");
+  check(r4.screenshots.length === 0, "no screenshot when the script fails before capturing");
   const steps = JSON.parse(readFileSync(join(r4.runDir, "steps.json"), "utf8"));
   check(steps.some((s) => !s.ok), "failing step marked in step log");
 } finally {

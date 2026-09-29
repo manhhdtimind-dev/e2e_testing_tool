@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { diffLines } from "diff";
-import type { InputSchema, InputValues, StepLog } from "../../shared/types";
+import type { Evidence, InputSchema, InputValues, StepLog } from "../../shared/types";
 import { api, artifactUrl } from "../api";
 
 // ---------- toast ----------
@@ -215,6 +215,32 @@ export function ArtifactImage({ refPath, alt }: { refPath?: string | null; alt: 
         </div>
       )}
     </>
+  );
+}
+
+/** Screenshots the script took itself; the runner does not capture anything on its own. */
+export function EvidenceShots({ evidence, what }: { evidence: Evidence; what: string }) {
+  const shots = evidence.screenshots ?? (evidence.screenshot ? [evidence.screenshot] : []);
+  if (!shots.length) {
+    return (
+      <div className="muted small">
+        Script không chụp màn hình. Thêm <span className="mono">await page.screenshot()</span> vào script ở chỗ cần lưu kết quả.
+      </div>
+    );
+  }
+  return (
+    <div className="col" style={{ gap: 8 }}>
+      {shots.map((ref, i) => (
+        <figure key={ref} style={{ margin: 0 }}>
+          {shots.length > 1 && (
+            <figcaption className="small muted" style={{ marginBottom: 4 }}>
+              Ảnh {i + 1}/{shots.length} do script chụp
+            </figcaption>
+          )}
+          <ArtifactImage refPath={ref} alt={`Screenshot ${i + 1} của ${what}`} />
+        </figure>
+      ))}
+    </div>
   );
 }
 

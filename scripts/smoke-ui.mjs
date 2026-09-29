@@ -35,6 +35,7 @@ export async function run(page: Page, input: { campaign_name: string; objective:
   // Step 5: Click Save
   await page.getByRole("button", { name: "Save" }).click({ timeout: 3000 });
   await expect(page.getByRole("heading", { name: "Campaign List" })).toBeVisible();
+  await page.screenshot();
 }
 `;
 
@@ -161,6 +162,8 @@ try {
   await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
   check(true, "Trial PASSED qua modal");
   await trialModal.locator(".steps, table.t").first().waitFor();
+  await trialModal.locator("img.shot").first().waitFor();
+  check((await trialModal.locator("img.shot").count()) === 1, "Trial hiện đúng 1 ảnh do script chụp");
   await shot("04-training-trial-passed");
   const layout = await win.locator(".modal").evaluate((m) => {
     const body = m.querySelector(".body");

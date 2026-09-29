@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { ArtifactImage, Badge, CodeView, DiffView, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
+import { ArtifactImage, Badge, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
 
 export interface TrainingIntent {
   test_id: string;
@@ -698,7 +698,7 @@ function TrialDetail({ trial, liveSteps, envName }: { trial: TrialRun; liveSteps
       </div>
       {trial.status === "PASSED" && <div className="info-box">Trial PASSED: script chạy hết action không lỗi. Đây chưa phải xác nhận kết quả nghiệp vụ.</div>}
       {trial.error_message && <div className="error-box">{trial.error_message}</div>}
-      {trial.evidence_refs.screenshot && <ArtifactImage refPath={trial.evidence_refs.screenshot} alt="Screenshot cuối của trial" />}
+      {trial.status !== "QUEUED" && trial.status !== "RUNNING" && <EvidenceShots evidence={trial.evidence_refs} what="trial" />}
       {trial.evidence_refs.steps && <StepsTable refPath={trial.evidence_refs.steps} />}
       {trial.evidence_refs.trace && (
         <button className="btn sm" style={{ alignSelf: "flex-start" }} onClick={() => api.revealArtifact(trial.evidence_refs.trace!)}>

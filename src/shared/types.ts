@@ -131,7 +131,10 @@ export type ExecutionErrorCode =
   | "EXCEPTION";
 
 export interface Evidence {
+  /** Last screenshot taken by the script (older runs: taken by the runner). */
   screenshot?: string;
+  /** Every screenshot the script took, in order. */
+  screenshots?: string[];
   trace?: string;
   steps?: string;
   log?: string;
@@ -223,7 +226,8 @@ export interface RunnerResult {
   error_code: ExecutionErrorCode | null;
   error_message: string | null;
   steps: StepLog[];
-  screenshot: string | null;
+  /** Screenshots taken by the script itself; the runner never captures on its own. */
+  screenshots: string[];
   trace: string | null;
   duration_ms: number;
   final_url: string | null;
