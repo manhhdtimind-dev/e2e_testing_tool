@@ -71,7 +71,7 @@ export interface ProviderThread {
 }
 
 export type AttemptStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "AUTH_REQUIRED";
-export type AttemptKind = "initial" | "revise" | "from_test_run" | "switch_agent";
+export type AttemptKind = "initial" | "revise" | "from_test_run" | "switch_agent" | "retrain";
 
 export interface TrainingAttempt {
   attempt_id: string;

@@ -184,6 +184,7 @@ try {
   await win.getByRole("button", { name: "Send to Training" }).click();
   await win.getByText("Ngữ cảnh gửi kèm").waitFor();
   check(true, "Send to Training mở Training với ngữ cảnh test run");
+  check(await win.getByRole("button", { name: "Training lại từ đầu" }).isVisible(), "Có nút Training lại từ đầu khi đã có lượt Training");
   await shot("08-send-to-training");
 
   // ---------- history + settings ----------

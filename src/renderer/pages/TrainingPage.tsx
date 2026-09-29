@@ -17,7 +17,7 @@ type EnvRow = ApiResult<"listEnvironments">[number];
 type Integration = ApiResult<"getIntegrationStatus">;
 
 const AGENT_LABEL: Record<AgentProvider, string> = { codex: "Codex", cursor: "Cursor" };
-const KIND_LABEL: Record<TrainingAttempt["kind"], string> = { initial: "Lượt đầu", revise: "Prompt sửa", from_test_run: "Từ Testing", switch_agent: "Đổi agent" };
+const KIND_LABEL: Record<TrainingAttempt["kind"], string> = { initial: "Lượt đầu", revise: "Prompt sửa", from_test_run: "Từ Testing", switch_agent: "Đổi agent", retrain: "Training lại" };
 
 type StageState = "idle" | "done" | "active" | "blocked" | "attn";
 
@@ -222,7 +222,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
 
   const integrationNote = integration && !integration[agent]?.ok ? `Adapter ${AGENT_LABEL[agent]} chưa qua kiểm tra tích hợp trên máy này (Cài đặt → Kiểm tra tích hợp).` : null;
 
-  const start = async () => {
+  const start = async (fresh = false) => {
     if (!tc || !env || !profileId) return;
     const a = await run(
       () =>
@@ -233,9 +233,10 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
           browser_profile_id: profileId,
           sample_input: sample,
           prompt,
-          context_ref: contextRef ?? null,
+          context_ref: fresh ? null : (contextRef ?? null),
+          fresh,
         }),
-      "Đã bắt đầu lượt Training",
+      fresh ? "Đã bắt đầu Training lại từ đầu" : "Đã bắt đầu lượt Training",
     );
     if (a) {
       setAttemptId(a.attempt_id);
@@ -481,7 +482,17 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                     Huỷ lượt đang chạy
                   </button>
                 )}
-                <button className="btn primary" disabled={busy || !!runningAttempt || !profileId || !envId} onClick={start}>
+                {!!state?.attempts.length && (
+                  <button
+                    className="btn"
+                    disabled={busy || !!runningAttempt || !profileId || !envId}
+                    onClick={() => start(true)}
+                    title="Tạo phiên AI mới, viết lại script từ test case; không dùng candidate cũ. Prompt (nếu có) được gửi kèm."
+                  >
+                    Training lại từ đầu
+                  </button>
+                )}
+                <button className="btn primary" disabled={busy || !!runningAttempt || !profileId || !envId} onClick={() => start()}>
                   {state?.candidates.length ? "Gửi prompt" : "Bắt đầu Training"}
                 </button>
               </div>

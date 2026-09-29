@@ -40,6 +40,8 @@ export interface StartTrainingRequest {
   sample_input: InputValues;
   prompt: string;
   context_ref?: { type: "trial" | "test_run"; id: string } | null;
+  /** Start over from the test case: new provider thread, previous candidates are not given to the agent. */
+  fresh?: boolean;
 }
 
 const busyProfiles = new Set<string>();
@@ -89,6 +91,8 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
   let kind: AttemptKind = hasHistory ? "revise" : "initial";
   if (req.context_ref?.type === "test_run") kind = "from_test_run";
   if (activeThread && activeThread.provider !== req.agent) kind = "switch_agent";
+  if (req.fresh) kind = "retrain";
+  const contextRef = kind === "retrain" ? null : req.context_ref;
 
   const attempt: TrainingAttempt = {
     attempt_id: newId("att"),
@@ -99,7 +103,7 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
     environment_id: env.environment_id,
     kind,
     prompt: req.prompt,
-    context_ref: req.context_ref ? `${req.context_ref.type}:${req.context_ref.id}` : null,
+    context_ref: contextRef ? `${contextRef.type}:${contextRef.id}` : null,
     sample_input: Object.fromEntries(Object.entries(req.sample_input).filter(([k]) => tc.input_schema.fields.some((f) => f.name === k && !f.secret))),
     status: "QUEUED",
     preflight_status: null,
@@ -277,8 +281,15 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     const script = ctx.repo.scripts.get(attempt.script_id)!;
     let thread = script.training_thread_id ? ctx.repo.threads.get(script.training_thread_id) : undefined;
     let freshThread = false;
-    if (!thread || thread.provider !== attempt.agent || thread.status !== "ACTIVE") {
-      const reason = !thread ? "first training" : thread.provider !== attempt.agent ? `switch ${thread.provider} → ${attempt.agent}` : "replace inactive thread";
+    const retrain = attempt.kind === "retrain";
+    if (retrain || !thread || thread.provider !== attempt.agent || thread.status !== "ACTIVE") {
+      const reason = retrain
+        ? "retrain from scratch"
+        : !thread
+          ? "first training"
+          : thread.provider !== attempt.agent
+            ? `switch ${thread.provider} → ${attempt.agent}`
+            : "replace inactive thread";
       thread = createThread(ctx, script, attempt.agent, thread, reason);
       freshThread = true;
     } else if (!thread.provider_thread_id) {
@@ -290,7 +301,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     mkdirSync(workspace, { recursive: true });
     const candidatePath = join(workspace, CANDIDATE_FILE);
     const latest = latestCandidate(ctx, script.script_id);
-    if (latest) writeFileSync(candidatePath, latest.source);
+    if (latest && !retrain) writeFileSync(candidatePath, latest.source);
     else rmSync(candidatePath, { force: true });
 
     const lastRun = runContextFor(ctx, attempt.context_ref, latest);
@@ -299,6 +310,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       .map((a) => a.prompt)
       .filter(Boolean);
     const buildPrompt = (fresh: boolean, reason: string) => {
+      if (retrain) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt);
       if (fresh && (latest || priorPrompts.length)) {
         return bootstrapPrompt({
           tc,
