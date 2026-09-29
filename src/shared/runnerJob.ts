@@ -12,6 +12,8 @@ export interface RunnerJob {
   actionTimeoutMs: number;
   navigationTimeoutMs: number;
   traceOnSuccess: boolean;
+  /** Headed runs only: leave the browser open after the script until the user closes it. */
+  keepOpen: boolean;
 }
 
 export type RunnerMessage =

@@ -110,6 +110,16 @@ export function SettingsPage() {
               <input type="checkbox" checked={settings.runner_headless} onChange={(e) => setSettings({ ...settings, runner_headless: e.target.checked })} />
             </label>
             <label className="field">
+              <span>Giữ browser mở sau Trial</span>
+              <input
+                type="checkbox"
+                checked={settings.runner_keep_open}
+                disabled={settings.runner_headless}
+                onChange={(e) => setSettings({ ...settings, runner_keep_open: e.target.checked })}
+              />
+              <em className="hint">Chỉ khi không chạy ẩn. Sau khi script xong, runner không thao tác thêm; đóng cửa sổ browser để kết thúc (tối đa 30 phút).</em>
+            </label>
+            <label className="field">
               <span>Giới hạn ghi file của runner</span>
               <input type="checkbox" checked={settings.runner_fs_restricted} onChange={(e) => setSettings({ ...settings, runner_fs_restricted: e.target.checked })} />
               <em className="hint">Node permission model: script chỉ ghi được vào thư mục run.</em>

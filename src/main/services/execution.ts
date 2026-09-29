@@ -89,6 +89,7 @@ async function execute(
       actionTimeoutMs: 15_000,
       navigationTimeoutMs: 30_000,
       traceOnSuccess: false,
+      keepOpen: kind === "trials" && !settings.runner_headless && settings.runner_keep_open,
     },
     storageState,
     { fsRestricted: settings.runner_fs_restricted, onStep: () => onStep(++steps) },

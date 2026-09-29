@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: StoredSettings = {
   max_concurrent_runs: 2,
   runner_browser: "chrome",
   runner_headless: true,
+  runner_keep_open: true,
   runner_fs_restricted: true,
   artifact_retention_days: 30,
 };

@@ -44,7 +44,7 @@ import {
   readArtifactText,
   type HistoryFilter,
 } from "./services/history";
-import { cancelTraining, startTraining, type StartTrainingRequest } from "./training/orchestrator";
+import { cancelTraining, saveManualCandidate, startTraining, type StartTrainingRequest } from "./training/orchestrator";
 import { runPreflight } from "./training/preflight";
 import { getIntegrationStatus, runIntegrationCheck } from "./training/integrationCheck";
 import { checkApprove } from "../core/rules";
@@ -160,6 +160,7 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     cancelTraining: (attemptId: string) => cancelTraining(ctx, attemptId),
     markCandidateReviewed: (candidateId: string) => markCandidateReviewed(ctx, candidateId),
     rejectCandidate: (candidateId: string) => rejectCandidate(ctx, candidateId),
+    saveManualCandidate: (candidateId: string, source: string, envId: string) => saveManualCandidate(ctx, candidateId, source, envId || undefined),
     startTrial: (candidateId: string, envId: string, input: InputValues) => startTrial(ctx, candidateId, envId, input),
     approveCheck: (candidateId: string, envId: string) => {
       const c = ctx.repo.candidates.get(candidateId);

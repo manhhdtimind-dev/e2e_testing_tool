@@ -145,6 +145,7 @@ table.t tr.sel td { background: var(--cobalt-soft); }
 .code .ln.del .n::after { content: " −"; color: var(--fail); }
 .code .ln.hl { background: #fff6d6; }
 .candidate-code .code { max-height: clamp(200px, 32vh, 360px); }
+.code-editor { width: 100%; height: clamp(200px, 32vh, 360px); resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.55; tab-size: 2; white-space: pre; overflow: auto; padding: 8px 10px; background: #fff; border: 1px solid var(--cobalt); border-radius: var(--radius); }
 
 /* ---------- signature: pipeline rail ---------- */
 .rail { display: grid; grid-template-columns: repeat(5, 1fr); margin: 4px 0 16px; background: var(--panel); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
 import { ArtifactImage, Badge, CodeView, DiffView, InputForm, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
@@ -401,12 +401,21 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 <div className="empty">Chưa có candidate. Bắt đầu Training để AI tạo script.</div>
               ) : (
                 <CandidateView
+                  key={candidate.candidate_id}
                   candidate={candidate}
                   previous={previous}
                   showDiff={showDiff}
                   setShowDiff={setShowDiff}
                   approveReason={approveReason}
                   busy={busy}
+                  editLocked={!!runningAttempt}
+                  onSaveEdit={async (source) => {
+                    const c = await run(() => api.saveManualCandidate(candidate.candidate_id, source, envId), "Đã lưu code sửa tay thành candidate mới");
+                    if (!c) return false;
+                    setCandidateId(c.candidate_id);
+                    void reload();
+                    return true;
+                  }}
                   onReject={async () => {
                     if (!confirm(`Từ chối candidate #${candidate.revision_no}?`)) return;
                     await run(() => api.rejectCandidate(candidate.candidate_id), "Đã từ chối candidate");
@@ -546,6 +555,8 @@ function CandidateView({
   setShowDiff,
   approveReason,
   busy,
+  editLocked,
+  onSaveEdit,
   onApprove,
   onReject,
   onExport,
@@ -556,36 +567,90 @@ function CandidateView({
   setShowDiff: (v: boolean) => void;
   approveReason: { ok: boolean; reason?: string } | null;
   busy: boolean;
+  editLocked: boolean;
+  onSaveEdit: (source: string) => Promise<boolean>;
   onApprove: () => void;
   onReject: () => void;
   onExport: () => void;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const editing = draft !== null;
+  const changed = editing && draft.replace(/\r\n/g, "\n") !== candidate.source;
+
+  const onEditorKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Tab" || e.shiftKey) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    const { selectionStart: s, selectionEnd: end } = el;
+    setDraft(el.value.slice(0, s) + "  " + el.value.slice(end));
+    requestAnimationFrame(() => el.setSelectionRange(s + 2, s + 2));
+  };
+
   return (
     <div className="col" style={{ gap: 10 }}>
       <div className="row">
         <Badge status={candidate.status} />
+        {!candidate.attempt_id && <span className="badge">SỬA TAY</span>}
         <span className="small muted">
           Revision #{candidate.revision_no} · {fmtTime(candidate.created_at)} · hash <span className="mono">{candidate.source_hash.slice(0, 12)}</span>
         </span>
         <span style={{ flex: 1 }} />
-        <label className="small row" style={{ gap: 4 }}>
-          <input type="checkbox" checked={showDiff} disabled={!previous} onChange={(e) => setShowDiff(e.target.checked)} /> So với #{previous?.revision_no ?? "—"}
-        </label>
-        <button className="btn sm" onClick={onExport}>
-          Tải script
-        </button>
+        {!editing && (
+          <>
+            <label className="small row" style={{ gap: 4 }}>
+              <input type="checkbox" checked={showDiff} disabled={!previous} onChange={(e) => setShowDiff(e.target.checked)} /> So với #{previous?.revision_no ?? "—"}
+            </label>
+            <button className="btn sm" disabled={editLocked} title={editLocked ? "Đang có lượt Training chạy" : undefined} onClick={() => setDraft(candidate.source)}>
+              Sửa code
+            </button>
+            <button className="btn sm" onClick={onExport}>
+              Tải script
+            </button>
+          </>
+        )}
       </div>
-      <div className="candidate-code">{showDiff && previous ? <DiffView before={previous.source} after={candidate.source} /> : <CodeView source={candidate.source} />}</div>
-      <div className="row">
-        {approveReason && !approveReason.ok && candidate.status === "DRAFT" && <span className="small muted">{approveReason.reason}</span>}
-        <span style={{ flex: 1 }} />
-        <button className="btn" disabled={busy || candidate.status !== "DRAFT"} onClick={onReject}>
-          Từ chối
-        </button>
-        <button className="btn good" disabled={busy || !approveReason?.ok} onClick={onApprove} title={approveReason?.reason}>
-          Approve
-        </button>
-      </div>
+      {editing ? (
+        <textarea
+          className="code-editor"
+          aria-label="Sửa code candidate"
+          spellCheck={false}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onEditorKey}
+          autoFocus
+        />
+      ) : (
+        <div className="candidate-code">{showDiff && previous ? <DiffView before={previous.source} after={candidate.source} /> : <CodeView source={candidate.source} />}</div>
+      )}
+      {editing ? (
+        <div className="row">
+          <span className="small muted">Lưu sẽ tạo candidate mới từ code này; cần Run Trial PASSED trước khi Approve.</span>
+          <span style={{ flex: 1 }} />
+          <button className="btn" disabled={busy} onClick={() => setDraft(null)}>
+            Huỷ
+          </button>
+          <button
+            className="btn primary"
+            disabled={busy || editLocked || !changed}
+            onClick={async () => {
+              if (await onSaveEdit(draft)) setDraft(null);
+            }}
+          >
+            Lưu thành candidate mới
+          </button>
+        </div>
+      ) : (
+        <div className="row">
+          {approveReason && !approveReason.ok && candidate.status === "DRAFT" && <span className="small muted">{approveReason.reason}</span>}
+          <span style={{ flex: 1 }} />
+          <button className="btn" disabled={busy || candidate.status !== "DRAFT"} onClick={onReject}>
+            Từ chối
+          </button>
+          <button className="btn good" disabled={busy || !approveReason?.ok} onClick={onApprove} title={approveReason?.reason}>
+            Approve
+          </button>
+        </div>
+      )}
     </div>
   );
 }

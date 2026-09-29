@@ -14,8 +14,30 @@ const ALLOWED_MODULES: Record<string, string> = {
   playwright: require.resolve("playwright"),
 };
 
+const KEEP_OPEN_MAX_MS = 30 * 60_000;
+
+/** Browser left open for the user after a headed Trial; the result has already been reported. */
+let held: { browser: Browser; context: BrowserContext } | null = null;
+
 function send(msg: RunnerMessage) {
   process.send?.(msg);
+}
+
+async function waitUntilUserCloses({ browser, context }: { browser: Browser; context: BrowserContext }) {
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      clearInterval(poll);
+      clearTimeout(limit);
+      resolve();
+    };
+    const poll = setInterval(() => {
+      if (!browser.isConnected() || context.pages().length === 0) done();
+    }, 1000);
+    const limit = setTimeout(done, KEEP_OPEN_MAX_MS);
+    browser.once("disconnected", done);
+    process.once("disconnect", done);
+  });
+  await browser.close().catch(() => undefined);
 }
 
 /** Generated scripts may only load Playwright; every other module request is rejected. */
@@ -68,7 +90,8 @@ async function execute(job: RunnerJob): Promise<RunnerResult> {
         // tracing failures must not hide the run result
       }
     }
-    await browser?.close().catch(() => undefined);
+    if (job.keepOpen && browser?.isConnected() && context && context.pages().length) held = { browser, context };
+    else await browser?.close().catch(() => undefined);
     result.duration_ms = Date.now() - t0;
     writeFileSync(join(job.runDir, "steps.json"), JSON.stringify(steps, null, 2));
     return result;
@@ -159,5 +182,6 @@ process.on("message", async (job: RunnerJob) => {
     };
   }
   send({ type: "result", result });
+  if (held) await waitUntilUserCloses(held);
   setTimeout(() => process.exit(0), 200);
 });

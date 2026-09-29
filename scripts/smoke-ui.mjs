@@ -187,6 +187,24 @@ try {
   check(await win.getByRole("button", { name: "Training lại từ đầu" }).isVisible(), "Có nút Training lại từ đầu khi đã có lượt Training");
   await shot("08-send-to-training");
 
+  // ---------- manual edit of a candidate ----------
+  await win.getByRole("button", { name: "Sửa code" }).click();
+  const editor = win.getByRole("textbox", { name: "Sửa code candidate" });
+  await editor.fill(CANDIDATE.replace('await page.goto("/campaigns");', 'await page.goto("/campaigns");\n  await page.pause();'));
+  await win.getByRole("button", { name: "Lưu thành candidate mới" }).click();
+  await win.getByText("Không dùng pause()").first().waitFor();
+  check((await bridge("getScriptState", "TC_CAMP_001")).candidates.length === 1, "Sửa tay: code không đạt kiểm tra thì không tạo candidate");
+  await editor.fill(CANDIDATE.replace("// Step 1: Mở trang Campaign", "// Step 1: Mở trang Campaign (sửa tay)"));
+  await win.getByRole("button", { name: "Lưu thành candidate mới" }).click();
+  await win.getByText("Revision #2").first().waitFor();
+  const edited = (await bridge("getScriptState", "TC_CAMP_001")).candidates.find((c) => c.revision_no === 2);
+  check(
+    edited?.status === "DRAFT" && edited.attempt_id === null && edited.source.includes("(sửa tay)") && (await win.locator(".badge", { hasText: "SỬA TAY" }).isVisible()),
+    "Sửa tay: lưu thành candidate #2 DRAFT, được chọn và gắn nhãn SỬA TAY",
+  );
+  check(!(await win.getByRole("button", { name: "Run Trial" }).isDisabled()), "Sửa tay: candidate mới Run Trial được");
+  await shot("08b-manual-edit");
+
   // ---------- history + settings ----------
   await nav("History");
   await win.locator("table.t tbody tr").first().waitFor();

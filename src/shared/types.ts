@@ -250,6 +250,7 @@ export interface Settings {
   max_concurrent_runs: number;
   runner_browser: "chrome" | "chromium" | "msedge";
   runner_headless: boolean;
+  runner_keep_open: boolean;
   runner_fs_restricted: boolean;
   artifact_retention_days: number;
   has_openai_key: boolean;

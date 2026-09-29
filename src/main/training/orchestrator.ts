@@ -138,6 +138,54 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
   return attempt;
 }
 
+/** Stores hand-edited code as a new DRAFT revision; like any candidate it needs a PASSED trial before Approve. */
+export function saveManualCandidate(ctx: AppContext, baseCandidateId: string, source: string, environmentId?: string): CandidateRevision {
+  const base = ctx.repo.candidates.get(baseCandidateId);
+  if (!base) throw new AppError("Không tìm thấy candidate");
+  if (busyScripts.has(base.script_id)) throw new AppError("Script đang có lượt Training chạy; đợi xong hoặc huỷ trước khi lưu code sửa tay");
+  const script = ctx.repo.scripts.get(base.script_id)!;
+  const tc = ctx.repo.testCases.get(script.test_id);
+  if (!tc) throw new AppError("Không tìm thấy test case của script");
+
+  const text = source.replace(/\r\n/g, "\n");
+  if (!text.trim()) throw new AppError("Script đang trống");
+  const hash = sha256(text);
+  if (hash === base.source_hash) throw new AppError(`Code chưa thay đổi so với candidate #${base.revision_no}`);
+
+  const baseAttempt = base.attempt_id ? ctx.repo.attempts.get(base.attempt_id) : undefined;
+  const validation = validateScript(text, {
+    schema: tc.input_schema,
+    sampleInput: baseAttempt?.sample_input ?? tc.sample_input,
+    secretValues: environmentId ? Object.values(environmentSecrets(ctx, environmentId)) : [],
+  });
+  const errors = validation.issues.filter((i) => i.severity === "error");
+  if (errors.length) throw new AppError(`Code chưa đạt kiểm tra:\n${errors.map((i) => `${i.line ? `dòng ${i.line}: ` : ""}${i.message}`).join("\n")}`);
+
+  const latest = latestCandidate(ctx, base.script_id)!;
+  const candidate: CandidateRevision = {
+    candidate_id: newId("cand"),
+    script_id: base.script_id,
+    revision_no: latest.revision_no + 1,
+    source: text,
+    source_hash: hash,
+    action_log_ref: null,
+    provider_thread_id: null,
+    attempt_id: null,
+    status: "DRAFT",
+    reviewed_at: now(),
+    created_at: now(),
+  };
+  ctx.repo.candidates.insert(candidate);
+  ctx.repo.audit("candidate.manual_edit", "candidate", candidate.candidate_id, {
+    script_id: base.script_id,
+    base_revision: base.revision_no,
+    revision_no: candidate.revision_no,
+    source_hash: hash,
+    warnings: validation.issues.length - errors.length,
+  });
+  return candidate;
+}
+
 export function cancelTraining(ctx: AppContext, attemptId: string) {
   const c = controllers.get(attemptId);
   if (!c) throw new AppError("Lượt Training không còn chạy");

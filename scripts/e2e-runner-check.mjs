@@ -57,7 +57,7 @@ try {
   const work = mkdtempSync(join(tmpdir(), "e2e-runner-check-"));
   const compiled = ts.transpileModule(CANDIDATE, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
 
-  async function runJob(name, input, { withAuth = true, fsRestricted = true } = {}) {
+  async function runJob(name, input, { withAuth = true, fsRestricted = true, keepOpen = false, onChild } = {}) {
     const runDir = join(work, name);
     mkdirSync(runDir, { recursive: true });
     const compiledPath = join(runDir, "script.cjs");
@@ -81,12 +81,14 @@ try {
       actionTimeoutMs: 5000,
       navigationTimeoutMs: 15000,
       traceOnSuccess: false,
+      keepOpen,
     };
     const execArgv = fsRestricted
       ? ["--permission", "--allow-fs-read=*", `--allow-fs-write=${runDir}`, `--allow-fs-write=${tmpdir()}`, "--allow-child-process", "--disable-warning=SecurityWarning"]
       : [];
     return await new Promise((resolveRun) => {
       const child = fork(join(root, "dist/runner/runner.cjs"), [], { execArgv, stdio: ["ignore", "inherit", "inherit", "ipc"] });
+      onChild?.(child);
       child.on("message", (m) => m.type === "result" && resolveRun({ ...m.result, runDir }));
       child.send(job);
     });
@@ -96,6 +98,14 @@ try {
   check(r1.ok, `Trial PASSED (${r1.error_code ?? ""} ${r1.error_message ?? ""})`);
   check(r1.steps.length >= 5, `step log recorded (${r1.steps.length} steps)`);
   check(!!r1.screenshot, "final screenshot saved");
+
+  let held;
+  const rk = await runJob("keep-open", { campaign_name: "Keep Open", objective: "Sales" }, { keepOpen: true, onChild: (c) => (held = c) });
+  const exited = new Promise((r) => held.once("exit", () => r(true)));
+  const stillAlive = await Promise.race([exited.then(() => false), new Promise((r) => setTimeout(() => r(true), 2000))]);
+  check(rk.ok && stillAlive, "keepOpen: result reported while the browser stays open");
+  held.disconnect();
+  check(await Promise.race([exited, new Promise((r) => setTimeout(() => r(false), 10000))]), "keepOpen: runner closes the browser and exits when the app disconnects");
 
   const r2 = await runJob("test-input-2", { campaign_name: "Black Friday", objective: "Traffic" });
   check(r2.ok, "Testing with second input COMPLETED");
