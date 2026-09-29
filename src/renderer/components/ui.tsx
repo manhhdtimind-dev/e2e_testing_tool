@@ -297,6 +297,30 @@ export function fmtTime(iso: string | null | undefined): string {
   return d.toLocaleString("vi-VN", { hour12: false });
 }
 
+export const groupLabel = (group: string) => group || "Chưa phân nhóm";
+
+/** `<option>`s for a test case `<select>`, in one `<optgroup>` per project · group. */
+export function CaseOptions<T extends { test_id: string; project_name: string; group_name: string }>({ cases, label }: { cases: T[]; label: (c: T) => string }) {
+  const groups = new Map<string, T[]>();
+  for (const c of cases) {
+    const key = `${c.project_name || "—"} · ${groupLabel(c.group_name)}`;
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  return (
+    <>
+      {[...groups].map(([key, list]) => (
+        <optgroup key={key} label={key}>
+          {list.map((c) => (
+            <option key={c.test_id} value={c.test_id}>
+              {label(c)}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </>
+  );
+}
+
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <label className="field">

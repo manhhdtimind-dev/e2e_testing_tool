@@ -115,16 +115,31 @@ function cellText(value: unknown): string {
   return String(value);
 }
 
-/**
- * `rows` are header-keyed records; `rowOffset` is the spreadsheet row number of rows[0]
- * (2 when the header is on row 1).
- */
-export function parseRows(fileName: string, headers: string[], rows: Record<string, unknown>[], rowOffset = 2): ImportPreview {
+/** File name without directory and extension; the group of CSV/YAML imports. */
+export function fileStem(fileName: string): string {
+  return fileName.replace(/^.*[\\/]/, "").replace(/\.[^.]+$/, "");
+}
+
+export interface ParseRowsOptions {
+  /** Spreadsheet row number of rows[0] (2 when the header is on row 1). */
+  rowOffset?: number;
+  /** Group given to every case; defaults to the file name without extension. */
+  group?: string;
+  sheet?: string;
+  /** Do not report "no rows" (used per sheet; the workbook-level check reports it instead). */
+  allowEmpty?: boolean;
+}
+
+/** `rows` are header-keyed records. */
+export function parseRows(fileName: string, headers: string[], rows: Record<string, unknown>[], opts: ParseRowsOptions = {}): ImportPreview {
+  const { rowOffset = 2, sheet } = opts;
+  const group = (opts.group ?? fileStem(fileName)).trim();
+  const at = sheet ? { sheet } : {};
   const issues: ImportIssue[] = [];
   const normalizedHeaders = headers.map((h) => h.trim().toLowerCase());
   for (const col of REQUIRED_COLUMNS) {
     if (!normalizedHeaders.includes(col)) {
-      issues.push({ row: 1, column: col, message: `Thiếu cột "${col}" trong header` });
+      issues.push({ ...at, row: 1, column: col, message: `Thiếu cột "${col}" trong header` });
     }
   }
   if (issues.length > 0) return { file_name: fileName, cases: [], issues };
@@ -139,29 +154,31 @@ export function parseRows(fileName: string, headers: string[], rows: Record<stri
 
     for (const col of REQUIRED_COLUMNS) {
       if (col === "input") continue;
-      if (!row[col]) issues.push({ row: rowNo, column: col, message: `Ô ${col} bị trống` });
+      if (!row[col]) issues.push({ ...at, row: rowNo, column: col, message: `Ô ${col} bị trống` });
     }
     const testId = row.test_id ?? "";
     if (testId) {
       if (seen.has(testId)) {
-        issues.push({ row: rowNo, column: "test_id", message: `test_id "${testId}" trùng với dòng ${seen.get(testId)}` });
+        issues.push({ ...at, row: rowNo, column: "test_id", message: `test_id "${testId}" trùng với dòng ${seen.get(testId)}` });
       } else {
         seen.set(testId, rowNo);
       }
     }
     const steps = parseSteps(row.steps ?? "");
     const { values, error } = parseInputCell(row.input ?? "");
-    if (error) issues.push({ row: rowNo, column: "input", message: error });
+    if (error) issues.push({ ...at, row: rowNo, column: "input", message: error });
     for (const key of Object.keys(values)) {
-      if (!FIELD_NAME_RE.test(key)) issues.push({ row: rowNo, column: "input", message: `Tên biến không hợp lệ: "${key}"` });
+      if (!FIELD_NAME_RE.test(key)) issues.push({ ...at, row: rowNo, column: "input", message: `Tên biến không hợp lệ: "${key}"` });
     }
     for (const v of extractVariables(steps)) {
       if (!(v in values)) {
-        issues.push({ row: rowNo, column: "steps", message: `Biến {{${v}}} không có trong input` });
+        issues.push({ ...at, row: rowNo, column: "steps", message: `Biến {{${v}}} không có trong input` });
       }
     }
     cases.push({
+      ...at,
       row: rowNo,
+      group,
       test_id: testId,
       title: row.title ?? "",
       steps,
@@ -171,10 +188,54 @@ export function parseRows(fileName: string, headers: string[], rows: Record<stri
       raw: rawRow,
     });
   });
-  if (cases.length === 0 && issues.length === 0) {
-    issues.push({ row: rowOffset, column: "*", message: "File không có dòng test case nào" });
+  if (cases.length === 0 && issues.length === 0 && !opts.allowEmpty) {
+    issues.push({ ...at, row: rowOffset, column: "*", message: "File không có dòng test case nào" });
   }
   return { file_name: fileName, cases, issues };
+}
+
+export interface SheetData {
+  name: string;
+  headers: string[];
+  rows: Record<string, unknown>[];
+}
+
+/**
+ * Every sheet with a `test_id` header column is a test case group named after the sheet.
+ * Other sheets (guides, notes, empty sheets) are skipped. test_id must be unique across sheets.
+ */
+export function parseSheets(fileName: string, sheets: SheetData[]): ImportPreview {
+  const cases: ParsedTestCase[] = [];
+  const issues: ImportIssue[] = [];
+  const skipped: string[] = [];
+  for (const sheet of sheets) {
+    const hasId = sheet.headers.some((h) => h.trim().toLowerCase() === "test_id");
+    const group = sheet.name.trim();
+    if (!hasId || !group) {
+      skipped.push(sheet.name);
+      continue;
+    }
+    const p = parseRows(fileName, sheet.headers, sheet.rows, { group, sheet: sheet.name, allowEmpty: true });
+    if (p.cases.length === 0 && p.issues.length === 0) {
+      skipped.push(sheet.name);
+      continue;
+    }
+    cases.push(...p.cases);
+    issues.push(...p.issues);
+  }
+  const firstSeen = new Map<string, ParsedTestCase>();
+  for (const c of cases) {
+    if (!c.test_id) continue;
+    const prev = firstSeen.get(c.test_id);
+    if (!prev) firstSeen.set(c.test_id, c);
+    else if (prev.sheet !== c.sheet) {
+      issues.push({ sheet: c.sheet, row: c.row, column: "test_id", message: `test_id "${c.test_id}" trùng với sheet "${prev.sheet}" dòng ${prev.row}` });
+    }
+  }
+  if (cases.length === 0 && issues.length === 0) {
+    issues.push({ row: 1, column: "*", message: 'Không có sheet nào chứa test case (sheet cần header có các cột test_id, title, steps, input, expected_result)' });
+  }
+  return { file_name: fileName, cases, issues, skipped_sheets: skipped };
 }
 
 /** Parses the YAML template format shown in the requirement (single or list of cases). */
@@ -196,5 +257,5 @@ export function parseYamlCases(fileName: string, text: string): ImportPreview {
       expected_result: o.expected_result,
     } as Record<string, unknown>;
   });
-  return parseRows(fileName, [...REQUIRED_COLUMNS], rows, 1);
+  return parseRows(fileName, [...REQUIRED_COLUMNS], rows, { rowOffset: 1 });
 }

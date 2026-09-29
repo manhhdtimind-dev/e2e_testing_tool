@@ -15,8 +15,20 @@ export interface InputSchema {
 
 export type InputValues = Record<string, string>;
 
+export interface Project {
+  project_id: string;
+  name: string;
+  created_at: string;
+}
+
+/** Either an existing project or a name for a project to create. */
+export type ProjectTarget = { project_id: string } | { new_name: string };
+
 export interface TestCase {
   test_id: string;
+  project_id: string | null;
+  /** Test case group; for Excel imports this is the sheet name. Empty = ungrouped. */
+  group_name: string;
   title: string;
   steps: string[];
   input_schema: InputSchema;
@@ -276,13 +288,18 @@ export interface ScriptValidation {
 }
 
 export interface ImportIssue {
+  /** Excel sheet the issue belongs to (absent for CSV/YAML). */
+  sheet?: string;
   row: number;
   column: string;
   message: string;
 }
 
 export interface ParsedTestCase {
+  /** Excel sheet the case came from (absent for CSV/YAML). */
+  sheet?: string;
   row: number;
+  group: string;
   test_id: string;
   title: string;
   steps: string[];
@@ -296,4 +313,6 @@ export interface ImportPreview {
   file_name: string;
   cases: ParsedTestCase[];
   issues: ImportIssue[];
+  /** Sheets ignored because they have no test_id column or no rows. */
+  skipped_sheets?: string[];
 }

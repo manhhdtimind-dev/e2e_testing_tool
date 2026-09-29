@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { ArtifactImage, Badge, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
+import { ArtifactImage, Badge, CaseOptions, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
 
 export interface TrainingIntent {
   test_id: string;
@@ -262,11 +262,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
           <label className="field">
             <span>Test case</span>
             <select value={testId} onChange={(e) => setTestId(e.target.value)} style={{ minWidth: 240 }}>
-              {cases.map((c) => (
-                <option key={c.test_id} value={c.test_id}>
-                  {c.test_id} — {c.title}
-                </option>
-              ))}
+              <CaseOptions cases={cases} label={(c) => `${c.test_id} — ${c.title}`} />
             </select>
           </label>
           <label className="field">

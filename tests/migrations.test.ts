@@ -30,6 +30,16 @@ describe("migrations", () => {
     db.run(`INSERT INTO versions VALUES ('s1',2,'c2','h2','src2',NULL,'e1','APPROVED','x','me')`);
     expect(db.get("SELECT trial_id FROM versions WHERE version_no = 2")).toEqual({ trial_id: null });
     expect(() => db.run("UPDATE versions SET source = 'changed' WHERE version_no = 1")).toThrow(/immutable/);
+    expect(db.get("SELECT project_id, group_name FROM test_cases WHERE test_id = 'TC1'")).toEqual({ project_id: "prj_default", group_name: "" });
+    expect(db.get("SELECT name FROM projects WHERE project_id = 'prj_default'")).toEqual({ name: "Dự án mặc định" });
+    db.raw.close();
+  });
+
+  it("creates no default project for a database without test cases", () => {
+    const dir = mkdtempSync(join(tmpdir(), "e2e-mig-"));
+    dirs.push(dir);
+    const db = new Db(join(dir, "e2e.sqlite"));
+    expect(db.all("SELECT * FROM projects")).toEqual([]);
     db.raw.close();
   });
 });

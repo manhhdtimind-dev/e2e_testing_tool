@@ -1,13 +1,13 @@
 import { BrowserWindow, dialog, shell } from "electron";
 import { existsSync, mkdirSync } from "node:fs";
 import { extname, join } from "node:path";
-import type { AgentProvider, InputValues, ParsedTestCase, ReviewResult, Settings } from "../shared/types";
+import type { AgentProvider, InputValues, ParsedTestCase, ProjectTarget, ReviewResult, Settings } from "../shared/types";
 import type { AppContext } from "./context";
 import { fromArtifactRef, paths } from "./paths";
 import { AppError } from "./util";
 import { updateSettings } from "./services/settings";
 import { secretKeys } from "./services/secrets";
-import { confirmImport, deleteTestCase, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
+import { confirmImport, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
 import { writeSampleCsv, writeSampleXlsx } from "./services/sampleTemplate";
 import {
   deleteProfile,
@@ -71,12 +71,26 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
 
     // ---------- test cases ----------
     listTestCases: () => {
+      const projects = new Map(ctx.repo.projects.where("1=1").map((p) => [p.project_id, p.name]));
       const cases = ctx.repo.testCases.where("1=1 ORDER BY test_id");
-      return cases.map((tc) => {
-        const script = ctx.repo.scripts.where("test_id = ?", tc.test_id)[0];
-        const versions = script ? ctx.repo.versions.where("script_id = ?", script.script_id) : [];
-        return { ...tc, script_id: script?.script_id ?? null, version_count: versions.length, approved_count: versions.filter((v) => v.status === "APPROVED").length };
-      });
+      return cases
+        .map((tc) => {
+          const script = ctx.repo.scripts.where("test_id = ?", tc.test_id)[0];
+          const versions = script ? ctx.repo.versions.where("script_id = ?", script.script_id) : [];
+          return {
+            ...tc,
+            project_name: (tc.project_id && projects.get(tc.project_id)) || "",
+            script_id: script?.script_id ?? null,
+            version_count: versions.length,
+            approved_count: versions.filter((v) => v.status === "APPROVED").length,
+          };
+        })
+        .sort((a, b) => a.project_name.localeCompare(b.project_name, "vi") || a.group_name.localeCompare(b.group_name, "vi") || a.test_id.localeCompare(b.test_id, "vi", { numeric: true }));
+    },
+    listProjects: () => listProjects(ctx),
+    deleteProject: (projectId: string) => {
+      deleteProject(ctx, projectId);
+      return true;
     },
     getTestCase: (testId: string) => ctx.repo.testCases.get(testId) ?? null,
     pickAndPreviewImport: async () => {
@@ -111,7 +125,7 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
       shell.showItemInFolder(file);
       return file;
     },
-    confirmImport: (fileName: string, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, cases),
+    confirmImport: (fileName: string, project: ProjectTarget, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, project, cases),
     saveTestCase: (input: TestCaseInput) => saveTestCase(ctx, input),
     deleteTestCase: (testId: string) => deleteTestCase(ctx, testId),
 

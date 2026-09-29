@@ -32,6 +32,10 @@ demo-site    website mẫu (login + campaign) để kiểm thử end-to-end
 **Import:** `.xlsx`/`.csv` → parse theo cột `test_id,title,steps,input,expected_result` → báo lỗi theo dòng/ô →
 người dùng sửa bản parse → Xác nhận (lưu cả `raw_import` và bản đã xác nhận). `input` chấp nhận YAML/JSON/`key=value` mỗi dòng.
 Biến `{{name}}` trong steps phải có trong input. Schema tạo từ key của input (kiểu string, required, có thể đánh dấu secret).
+Bấm Import mở modal chọn **dự án** có sẵn hoặc nhập tên dự án mới (trùng tên, không phân biệt hoa/thường ⇒ dùng dự án có sẵn;
+dự án mới chỉ được tạo khi xác nhận lưu). **Nhóm** = tên sheet: mọi sheet có cột `test_id` ở dòng 1 là một nhóm, sheet khác bị bỏ qua;
+`.csv`/`.yaml` là một nhóm theo tên file. `test_id` duy nhất trên mọi dự án: import bị chặn nếu `test_id` đã thuộc dự án khác,
+cùng dự án thì ghi đè. Danh sách Test Cases lọc theo dự án, nhóm và text. Test case có trước khi thêm dự án được đưa vào "Dự án mặc định".
 
 **Preflight:** app tự mở MCP client tới Playwright MCP (extension + profile dir đã chọn), navigate `base_url`,
 trả `CONNECTED | PROFILE_UNAVAILABLE`. Không có bước kiểm tra đăng nhập (`auth_check`) — đã bỏ theo quyết định của người dùng;

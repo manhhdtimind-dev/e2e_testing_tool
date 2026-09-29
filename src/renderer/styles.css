@@ -118,6 +118,8 @@ input:disabled, select:disabled, textarea:disabled { background: #f3f5f7; color:
 @media (prefers-reduced-motion: reduce) { .badge.run::before { animation: none; } }
 
 /* ---------- lists & tables ---------- */
+.case-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; border-bottom: 1px solid var(--rule-2); }
+.case-filters input { grid-column: 1 / -1; }
 .list { list-style: none; margin: 0; padding: 0; }
 .list li { padding: 9px 14px; border-bottom: 1px solid var(--rule-2); cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
 .list .clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

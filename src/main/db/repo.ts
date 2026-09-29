@@ -3,6 +3,7 @@ import type {
   BrowserProfile,
   CandidateRevision,
   Environment,
+  Project,
   ProviderThread,
   Script,
   ScriptVersion,
@@ -21,6 +22,7 @@ interface TableSpec {
 }
 
 const TABLES = {
+  projects: { name: "projects", pk: ["project_id"], json: [] },
   test_cases: { name: "test_cases", pk: ["test_id"], json: ["steps", "input_schema", "sample_input", "raw_import"] },
   environments: { name: "environments", pk: ["environment_id"], json: ["allowed_domains", "secret_fields"] },
   browser_profiles: { name: "browser_profiles", pk: ["browser_profile_id"], json: [] },
@@ -89,6 +91,7 @@ function columnsOf(db: Db, table: string): string[] {
 }
 
 export class Repo {
+  readonly projects: Table<Project>;
   readonly testCases: Table<TestCase>;
   readonly environments: Table<Omit<Environment, never>>;
   readonly profiles: Table<Omit<BrowserProfile, "has_extension_token">>;
@@ -102,6 +105,7 @@ export class Repo {
 
   constructor(readonly db: Db) {
     const make = <T extends object>(t: TableName) => new Table<T>(db, TABLES[t], columnsOf(db, TABLES[t].name));
+    this.projects = make("projects");
     this.testCases = make("test_cases");
     this.environments = make("environments");
     this.profiles = make("browser_profiles");

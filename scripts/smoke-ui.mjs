@@ -91,14 +91,65 @@ try {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] });
   }, csvPath);
   await win.getByRole("button", { name: "Import .xlsx / .csv" }).click();
+  const setup = win.locator(".modal", { hasText: "Import test case" });
+  await setup.waitFor();
+  const pickFile = setup.getByRole("button", { name: "Chọn file…" });
+  check(await pickFile.isDisabled(), "Import: phải nhập/chọn dự án trước khi chọn file");
+  await setup.getByLabel("Tên dự án mới").fill("Demo shop");
+  await pickFile.click();
   await win.getByText("Parser báo").waitFor();
   check(await win.getByText("missing_var").first().isVisible(), "Import: parser báo biến/ô thiếu");
   check(await win.getByRole("button", { name: "Xác nhận và lưu" }).isDisabled(), "Import: chặn lưu khi còn lỗi");
+  check(await win.locator(".modal").getByText("Demo shop").first().isVisible(), "Import: bản parse hiện dự án đã chọn");
   await shot("01-import-preview");
-  await win.locator("tr", { hasText: "TC_BAD_002" }).getByRole("button").nth(1).click();
+  await win.locator("tr", { hasText: "TC_BAD_002" }).getByRole("button", { name: "Bỏ" }).click();
   await win.getByRole("button", { name: "Xác nhận và lưu" }).click();
   await win.locator(".list li", { hasText: "TC_CAMP_001" }).waitFor();
   check(true, "Import: lưu test case sau khi bỏ dòng lỗi");
+  const projectFilter = win.getByLabel("Lọc theo dự án");
+  const groupFilter = win.getByLabel("Lọc theo nhóm");
+  const selectedText = (loc) => loc.evaluate((el) => el.options[el.selectedIndex].text);
+  check((await selectedText(projectFilter)).startsWith("Demo shop"), "Import: danh sách chuyển sang lọc dự án vừa import");
+  check((await win.locator(".list li", { hasText: "TC_CAMP_001" }).innerText()).includes("cases"), "CSV: nhóm = tên file (cases)");
+
+  // Excel: every sheet with test_id is a group named after the sheet; test_id owned by another project is blocked.
+  await app.evaluate(({ dialog }, p) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] });
+  }, opened[0]);
+  await win.getByRole("button", { name: "Import .xlsx / .csv" }).click();
+  await setup.waitFor();
+  await setup.getByLabel("Dự án", { exact: true }).selectOption("__new__");
+  await setup.getByLabel("Tên dự án mới").fill("Dự án B");
+  await pickFile.click();
+  const parseModal = win.locator(".modal", { hasText: "Xem bản parse" });
+  await parseModal.waitFor();
+  check(
+    (await parseModal.innerText()).includes("Tạo campaign (1)") && (await parseModal.innerText()).includes("Tìm kiếm campaign (1)"),
+    "Excel: mỗi sheet là một nhóm (Tạo campaign, Tìm kiếm campaign)",
+  );
+  check(await parseModal.getByText('Bỏ qua sheet không có test case: "Hướng dẫn"').isVisible(), "Excel: bỏ qua sheet Hướng dẫn");
+  const conflictRow = parseModal.locator("tr", { hasText: "TC_CAMP_001" });
+  check((await conflictRow.locator(".badge.fail").getAttribute("title"))?.includes('đã thuộc dự án "Demo shop"'), "Excel: chặn test_id đã thuộc dự án khác");
+  check(await parseModal.getByRole("button", { name: "Xác nhận và lưu" }).isDisabled(), "Excel: không lưu được khi còn test_id trùng dự án khác");
+  await shot("01b-import-xlsx-groups");
+  await conflictRow.getByRole("button", { name: "Bỏ" }).click();
+  await parseModal.getByRole("button", { name: "Xác nhận và lưu" }).click();
+  await win.locator(".list li", { hasText: "TC_CAMP_002" }).waitFor();
+  check((await selectedText(projectFilter)).startsWith("Dự án B") && (await win.locator(".list li").count()) === 1, "Excel: lưu vào Dự án B, danh sách lọc theo dự án đó");
+
+  // Filters: project + group.
+  await projectFilter.selectOption({ label: "Tất cả dự án (2)" });
+  check((await win.locator(".list li").count()) === 2, "Lọc: tất cả dự án hiện 2 test case");
+  const groupOptions = await groupFilter.evaluate((el) => [...el.options].map((o) => o.text));
+  check(groupOptions.some((t) => t.startsWith("Tìm kiếm campaign")) && groupOptions.some((t) => t.startsWith("cases")), `Lọc: danh sách nhóm theo dự án (${groupOptions.join(" | ")})`);
+  await groupFilter.selectOption({ label: "Tìm kiếm campaign (1)" });
+  const onlyGroup = await win.locator(".list li").allInnerTexts();
+  check(onlyGroup.length === 1 && onlyGroup[0].includes("TC_CAMP_002"), "Lọc: theo nhóm chỉ còn TC_CAMP_002");
+  await projectFilter.selectOption({ label: "Demo shop (1)" });
+  const onlyProject = await win.locator(".list li").allInnerTexts();
+  check(onlyProject.length === 1 && onlyProject[0].includes("TC_CAMP_001") && (await selectedText(groupFilter)).startsWith("Tất cả nhóm"), "Lọc: đổi dự án thì bỏ lọc nhóm, chỉ còn TC_CAMP_001");
+  await win.locator(".list li", { hasText: "TC_CAMP_001" }).click();
+  check((await win.locator(".panel .field", { hasText: "Nhóm" }).locator("input").inputValue()) === "cases", "Chi tiết test case hiện nhóm");
   await shot("02-test-cases");
 
   // ---------- environment + runner auth ----------

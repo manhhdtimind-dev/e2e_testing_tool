@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { InputValues, TestRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { Badge, EvidenceShots, InputForm, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
+import { Badge, CaseOptions, EvidenceShots, InputForm, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
 import type { TrainingIntent } from "./TrainingPage";
 
 type CaseRow = ApiResult<"listTestCases">[number];
@@ -71,11 +71,7 @@ export function TestingPage({ intent, onSendToTraining }: { intent: { test_id: s
           <label className="field">
             <span>Test case</span>
             <select value={testId} onChange={(e) => setTestId(e.target.value)} style={{ minWidth: 240 }}>
-              {cases.map((c) => (
-                <option key={c.test_id} value={c.test_id}>
-                  {c.test_id} — {c.title} {c.approved_count ? "" : "(chưa có version)"}
-                </option>
-              ))}
+              <CaseOptions cases={cases} label={(c) => `${c.test_id} — ${c.title} ${c.approved_count ? "" : "(chưa có version)"}`} />
             </select>
           </label>
           <label className="field">

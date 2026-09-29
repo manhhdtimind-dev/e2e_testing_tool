@@ -171,6 +171,19 @@ export const MIGRATIONS: string[] = [
   CREATE TRIGGER versions_immutable BEFORE UPDATE OF source, source_hash, candidate_id, version_no, script_id ON versions
   BEGIN SELECT RAISE(ABORT, 'script version is immutable'); END;
   `,
+  `
+  CREATE TABLE projects (
+    project_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+  );
+  ALTER TABLE test_cases ADD COLUMN project_id TEXT REFERENCES projects(project_id);
+  ALTER TABLE test_cases ADD COLUMN group_name TEXT NOT NULL DEFAULT '';
+  INSERT INTO projects (project_id, name, created_at)
+    SELECT 'prj_default', 'Dự án mặc định', strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE EXISTS (SELECT 1 FROM test_cases);
+  UPDATE test_cases SET project_id = 'prj_default' WHERE project_id IS NULL;
+  CREATE INDEX idx_test_cases_project ON test_cases(project_id, group_name);
+  `,
 ];
 
 export type Row = Record<string, unknown>;
