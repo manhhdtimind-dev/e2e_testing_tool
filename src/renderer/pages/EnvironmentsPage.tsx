@@ -212,6 +212,7 @@ function ProfilesPanel({ profiles, reload }: { profiles: BrowserProfile[]; reloa
   useEffect(() => {
     api.detectProfiles().then(setDetected).catch(() => setDetected([]));
   }, []);
+  const matchedIndex = detected.findIndex((p) => p.browser === draft.browser && p.profile_dir_name === draft.profile_dir_name.trim());
 
   return (
     <Panel title="Chrome profiles cho Training">
@@ -261,13 +262,15 @@ function ProfilesPanel({ profiles, reload }: { profiles: BrowserProfile[]; reloa
       <div className="form-grid">
         <Field label="Chọn từ profile trên máy">
           <select
-            value=""
+            value={matchedIndex >= 0 ? String(matchedIndex) : ""}
             onChange={(e) => {
               const found = detected[Number(e.target.value)];
               if (found) setDraft({ ...draft, profile_dir_name: found.profile_dir_name, browser: found.browser, display_name: draft.display_name || found.name });
             }}
           >
-            <option value="">{detected.length ? "— Chọn —" : "Không tìm thấy profile"}</option>
+            <option value="">
+              {!detected.length ? "Không tìm thấy profile" : draft.profile_dir_name && matchedIndex < 0 ? `Không có "${draft.profile_dir_name}" trên máy này` : "— Chọn —"}
+            </option>
             {detected.map((p, i) => (
               <option key={`${p.browser}-${p.profile_dir_name}`} value={i}>
                 {p.browser === "chrome" ? "Chrome" : "Edge"} · {p.name} ({p.profile_dir_name})

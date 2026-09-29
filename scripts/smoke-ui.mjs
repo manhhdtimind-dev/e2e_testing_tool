@@ -115,6 +115,17 @@ try {
   await nav("Environment");
   await win.getByText("Demo local").first().waitFor();
   check((await win.getByText("Kiểm tra đăng nhập").count()) === 0, "Environment không còn phần auth_check");
+  const detected = await bridge("detectProfiles");
+  if (detected.length) {
+    const d = detected[0];
+    await bridge("saveProfile", { display_name: "Smoke profile", profile_dir_name: d.profile_dir_name, browser: d.browser, extension_token: "" });
+    await nav("Testing");
+    await nav("Environment");
+    await win.locator("table.t tr", { hasText: "Smoke profile" }).getByRole("button", { name: "Sửa" }).click();
+    const picked = await win.locator(".field", { hasText: "Chọn từ profile trên máy" }).locator("select").evaluate((el) => el.options[el.selectedIndex].text);
+    check(picked.includes(`(${d.profile_dir_name})`), `Sửa profile hiện đúng "Chọn từ profile trên máy" (${picked})`);
+    await win.getByRole("button", { name: "Huỷ sửa" }).click();
+  }
   await shot("03-environment");
 
   // ---------- seed a candidate as a Training turn would ----------
