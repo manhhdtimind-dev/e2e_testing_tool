@@ -42,6 +42,8 @@ ${sampleInputBlock(tc, sample)}
 Values like {{name}} in the steps refer to input fields.`;
 }
 
+export const UNATTENDED_NOTE = `This is an unattended, non-interactive run: nobody can answer questions or approve a plan until the turn has ended. Do not stop to ask for confirmation, and do not follow interactive workflows from personal skills or instruction files (brainstorming, design approval, planning sign-off, etc.). Decide reasonably, apply the change to \`${CANDIDATE_FILE}\`, and explain your choices in the final reply. Use status "blocked" only for the site/step problems described in these instructions.`;
+
 export function rulesBlock(tc: TestCase, maxActions: number): string {
   return `## How to work
 1. Use ONLY the Playwright MCP tools of server "playwright" (browser_navigate, browser_snapshot, browser_click, browser_type, browser_fill_form, browser_select_option, browser_press_key, browser_wait_for, ...). They drive the user's already logged-in Chrome profile. Read page structure from the accessibility snapshot; call browser_take_screenshot only when the snapshot is not enough.
@@ -60,7 +62,7 @@ export async function run(page: Page, input: Input): Promise<void> {
    - Every test-data value must come from \`input.<field>\`. Never hardcode sample values or secrets.
    - Use relative URLs with page.goto (the runner sets baseURL to the environment base URL).
    - Prefer getByRole / getByLabel / getByTestId / getByText locators taken from the snapshot or from the Playwright code the tools return. Never use mouse coordinates or click positions.
-   - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts.
+   - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts. Never call page.pause() — the runner is unattended.
    - Do not log in inside the script (the runner has its own authenticated session). Only import from "@playwright/test". No fs, process, require, eval or network calls.
    - Add a comment \`// Step N: <manual step>\` before the code of each manual step.
 4. At the end call browser_take_screenshot once to capture the final state.
@@ -83,6 +85,7 @@ ${steps ? `- executed steps (runner log):\n${steps}` : "- no steps were executed
 
 export function initialPrompt(tc: TestCase, env: Environment, sample: InputValues, maxActions: number, userPrompt: string): string {
   return `You are training an automated web E2E test script with Playwright.
+${UNATTENDED_NOTE}
 
 ${testCaseBlock(tc, env, sample)}
 
@@ -99,6 +102,7 @@ export function revisePrompt(opts: {
   maxActions: number;
 }): string {
   return `Revise the test script.
+${UNATTENDED_NOTE}
 
 ${opts.revisionNo ? `\`${CANDIDATE_FILE}\` in the working directory contains candidate revision #${opts.revisionNo} (the latest saved version). Edit it in place.` : `\`${CANDIDATE_FILE}\` does not exist yet; create it.`}
 Sample input for this turn: ${JSON.stringify(opts.sample)}
@@ -123,6 +127,7 @@ export function bootstrapPrompt(opts: {
 }): string {
   const history = opts.promptHistory.slice(-10).map((p, i) => `  ${i + 1}. ${p.replace(/\s+/g, " ").slice(0, 400)}`).join("\n");
   return `You are continuing the training of an automated web E2E test script with Playwright. ${opts.reason}
+${UNATTENDED_NOTE}
 
 ${testCaseBlock(opts.tc, opts.env, opts.sample)}
 
@@ -145,7 +150,7 @@ export function repairPrompt(issues: ValidationIssue[]): string {
   return `\`${CANDIDATE_FILE}\` failed automatic validation:
 ${list}
 
-Fix \`${CANDIDATE_FILE}\` in place (no browser actions are needed unless a locator must be re-checked). Keep the exported \`async function run(page, input)\` signature and use only input.<field> for test data.
+Fix \`${CANDIDATE_FILE}\` in place without asking for confirmation (no browser actions are needed unless a locator must be re-checked). Keep the exported \`async function run(page, input)\` signature and use only input.<field> for test data.
 Finish with ONE line of JSON: {"status":"done"|"blocked"|"auth_required","reason":"...","steps_done":[...]}`;
 }
 

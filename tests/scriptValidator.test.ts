@@ -63,6 +63,7 @@ describe("validateScript", () => {
     expect(codes(GOOD.replace('.click();', ".click({ position: { x: 1, y: 2 } });"))).toContain("COORDINATES");
     expect(codes(`import fs from "fs";\n${GOOD}`)).toContain("FORBIDDEN_IMPORT");
     expect(codes(GOOD.replace('await page.goto("/campaigns");', "eval('1'); process.exit(0);"))).toContain("FORBIDDEN_API");
+    expect(codes(GOOD.replace('await page.goto("/campaigns");', 'await page.goto("/campaigns");\n  await page.pause();'))).toContain("PAUSE");
   });
 
   it("flags secrets", () => {

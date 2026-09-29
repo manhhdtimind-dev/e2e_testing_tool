@@ -162,6 +162,7 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
         }
       }
       if (method === "waitForTimeout") add("warning", "FIXED_WAIT", "Tránh waitForTimeout; nên chờ theo điều kiện", node);
+      if (method === "pause") add("error", "PAUSE", "Không dùng pause(): runner chạy tự động, lệnh này làm Trial/Testing treo đến khi hết thời gian", node);
       if (method === "goto" && node.arguments[0]) {
         const first = node.arguments[0];
         if ((ts.isStringLiteral(first) || ts.isNoSubstitutionTemplateLiteral(first)) && /^https?:\/\//i.test(first.text)) {

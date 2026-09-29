@@ -16,6 +16,8 @@ export const codexAdapter: AgentAdapter = {
     const codex = new Codex({
       ...(req.apiKey ? { apiKey: req.apiKey } : {}),
       config: {
+        // Personal skills (e.g. brainstorming with design sign-off) stall unattended Training turns.
+        skills: { include_instructions: false },
         mcp_servers: {
           playwright: {
             command: req.mcp.command,
