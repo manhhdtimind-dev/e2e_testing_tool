@@ -152,7 +152,13 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   }, [state, candidateId, attemptId]);
 
   useAppEvent<TrainingAttempt>("training:attempt", (a) => {
-    if (!state?.script || state.script.script_id === a.script_id) void reload();
+    if (state?.script && state.script.script_id !== a.script_id) return;
+    // Only the update that attaches a new candidate lacks finished_at; the final one must not override a manual selection.
+    if (a.candidate_id && !a.finished_at) {
+      setCandidateId(a.candidate_id);
+      setAttemptId(a.attempt_id);
+    }
+    void reload();
   });
   useAppEvent<{ attempt_id: string; event: TrainingEvent }>("training:event", ({ attempt_id, event }) => {
     setLiveEvents((m) => ({ ...m, [attempt_id]: [...(m[attempt_id] ?? []), event].slice(-400) }));
