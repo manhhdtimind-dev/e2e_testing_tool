@@ -140,7 +140,9 @@ export function TestingPage({ intent, onSendToTraining }: { intent: { test_id: s
                       v{r.version_no}
                     </span>
                   </div>
-                  <span className="small mono muted">{JSON.stringify(r.input_snapshot)}</span>
+                  <span className="small mono muted clip" title={JSON.stringify(r.input_snapshot, null, 2)}>
+                    {JSON.stringify(r.input_snapshot)}
+                  </span>
                   <span className="small muted">{fmtTime(r.created_at)}</span>
                 </li>
               ))}

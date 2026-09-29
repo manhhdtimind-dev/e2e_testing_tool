@@ -186,10 +186,13 @@ try {
 
   // ---------- testing: completed + review ----------
   await nav("Testing");
+  await win.locator(".field", { hasText: "campaign_name" }).locator("input").fill("Summer_Sale_with_a_very_long_unbroken_campaign_name_2026");
   await win.getByRole("button", { name: "Chạy test" }).click();
   await win.locator(".expected").waitFor();
   await win.getByText("ĐÁNH GIÁ CỦA NGƯỜI DÙNG").waitFor({ timeout: 90_000 });
   check(true, "Test run COMPLETED, chờ người dùng đánh giá");
+  const runList = await win.locator("ul.list.tall").evaluate((ul) => ({ scroll: ul.scrollWidth, client: ul.clientWidth }));
+  check(runList.scroll <= runList.client + 1, `Danh sách Test runs không tràn ngang với input dài (${runList.scroll}/${runList.client})`);
   await shot("06-testing-completed");
   await win.getByRole("button", { name: "PASS", exact: true }).click();
   await win.locator(".panel .badge.pass", { hasText: /^PASS$/ }).first().waitFor();
