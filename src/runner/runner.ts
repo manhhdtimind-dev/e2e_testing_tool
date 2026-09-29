@@ -16,7 +16,7 @@ const ALLOWED_MODULES: Record<string, string> = {
 
 const KEEP_OPEN_MAX_MS = 30 * 60_000;
 
-/** Browser left open for the user after a headed Trial; the result has already been reported. */
+/** Browser left open for the user after a headed run; the result has already been reported. */
 let held: { browser: Browser; context: BrowserContext } | null = null;
 
 function send(msg: RunnerMessage) {

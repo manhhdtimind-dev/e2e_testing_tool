@@ -110,7 +110,7 @@ export function SettingsPage() {
               <input type="checkbox" checked={settings.runner_headless} onChange={(e) => setSettings({ ...settings, runner_headless: e.target.checked })} />
             </label>
             <label className="field">
-              <span>Giữ browser mở sau Trial</span>
+              <span>Giữ browser mở sau Trial / Testing</span>
               <input
                 type="checkbox"
                 checked={settings.runner_keep_open}
