@@ -33,6 +33,7 @@ import {
   runnerAuthStatus,
   startTestRun,
   startTrial,
+  clearTrials,
 } from "./services/execution";
 import {
   exportCandidateSource,
@@ -160,6 +161,7 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     rejectCandidate: (candidateId: string) => rejectCandidate(ctx, candidateId),
     saveManualCandidate: (candidateId: string, source: string, envId: string) => saveManualCandidate(ctx, candidateId, source, envId || undefined),
     startTrial: (candidateId: string, envId: string, input: InputValues) => startTrial(ctx, candidateId, envId, input),
+    clearTrials: (candidateId: string) => clearTrials(ctx, candidateId),
     approveCandidate: (candidateId: string, envId: string) => approveCandidate(ctx, candidateId, envId),
 
     // ---------- testing ----------

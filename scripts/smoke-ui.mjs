@@ -162,12 +162,26 @@ try {
   check(true, "Trial PASSED qua modal");
   await trialModal.locator(".steps, table.t").first().waitFor();
   await shot("04-training-trial-passed");
+  const layout = await win.locator(".modal").evaluate((m) => {
+    const body = m.querySelector(".body");
+    return { bottom: m.getBoundingClientRect().bottom, vh: window.innerHeight, overflow: getComputedStyle(body).overflowY, scrollable: body.scrollHeight > body.clientHeight };
+  });
+  check(layout.bottom <= layout.vh && layout.overflow === "auto" && layout.scrollable, `Modal Trial nằm trong cửa sổ và cuộn được (${JSON.stringify(layout)})`);
+  win.once("dialog", (d) => d.accept());
+  await trialModal.getByRole("button", { name: "Xoá kết quả cũ" }).click();
+  await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ state: "detached" });
+  check((await bridge("getScriptState", "TC_CAMP_001")).trials.length === 0, "Xoá kết quả Trial cũ");
+  await trialModal.getByRole("button", { name: "Run Trial" }).click();
+  await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
   await trialModal.getByRole("button", { name: "Đóng" }).click();
   await trialModal.waitFor({ state: "detached" });
   check(await win.locator(".badge", { hasText: "PASSED" }).first().isVisible(), "Đóng modal: khung Candidate hiện Trial gần nhất PASSED");
   await win.getByRole("button", { name: "Chấp nhận" }).click();
   await win.getByText("Version v1").first().waitFor();
-  check(!!(await bridge("getScriptState", "TC_CAMP_001")).versions[0]?.trial_id, "Chấp nhận tạo version v1, gắn Trial PASSED");
+  const afterAccept = await bridge("getScriptState", "TC_CAMP_001");
+  check(!!afterAccept.versions[0]?.trial_id, "Chấp nhận tạo version v1, gắn Trial PASSED");
+  const cleared = await bridge("clearTrials", afterAccept.candidates.find((c) => c.revision_no === 1).candidate_id);
+  check(cleared.removed === 0 && cleared.kept === 1, "Xoá kết quả cũ giữ lại Trial đã gắn với version");
   await shot("05-training-approved");
 
   // ---------- testing: completed + review ----------

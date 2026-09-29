@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { ArtifactImage, Badge, CodeView, DiffView, InputForm, Modal, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
+import { ArtifactImage, Badge, CodeView, DiffView, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
 
 export interface TrainingIntent {
   test_id: string;
@@ -99,6 +99,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const [storedEvents, setStoredEvents] = useState<TrainingEvent[]>([]);
   const [trialSteps, setTrialSteps] = useState<Record<string, number>>({});
   const { run, busy } = useAction();
+  const toast = useToast();
   const eventsBox = useRef<HTMLDivElement>(null);
   const [trialOpen, setTrialOpen] = useState(false);
 
@@ -452,12 +453,27 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 </div>
                 {candidateTrials.length > 0 && (
                   <>
-                    <div className="row" style={{ marginTop: 12 }}>
+                    <div className="row" style={{ marginTop: 12, flexWrap: "wrap" }}>
                       {candidateTrials.map((t) => (
                         <button key={t.trial_id} className={`btn sm ${trial?.trial_id === t.trial_id ? "primary" : ""}`} onClick={() => setTrialId(t.trial_id)}>
                           {new Date(t.created_at).toLocaleTimeString("vi-VN", { hour12: false })} · {t.status}
                         </button>
                       ))}
+                      <span style={{ flex: 1 }} />
+                      <button
+                        className="btn sm ghost"
+                        disabled={busy || candidateTrials.every((t) => t.status === "QUEUED" || t.status === "RUNNING")}
+                        onClick={async () => {
+                          if (!confirm(`Xoá kết quả các lượt Trial đã chạy của candidate #${candidate.revision_no} (kèm screenshot, trace)?`)) return;
+                          const r = await run(() => api.clearTrials(candidate.candidate_id));
+                          if (!r) return;
+                          toast(r.kept ? `Đã xoá ${r.removed} lượt Trial; giữ ${r.kept} lượt đang chạy hoặc gắn với version.` : `Đã xoá ${r.removed} lượt Trial.`, "ok");
+                          setTrialId(null);
+                          void reload();
+                        }}
+                      >
+                        Xoá kết quả cũ
+                      </button>
                     </div>
                     {trial && <TrialDetail trial={trial} liveSteps={trialSteps[trial.trial_id]} envName={envs.find((e) => e.environment_id === trial.environment_id)?.name} />}
                   </>

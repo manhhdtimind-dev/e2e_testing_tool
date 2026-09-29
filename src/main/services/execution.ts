@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { rmSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import type {
@@ -18,7 +18,7 @@ import { transpileScript } from "../../core/scriptValidator";
 import { checkApprove, isVersionSelectable, nextVersionNo } from "../../core/rules";
 import { marksVersionBroken } from "../../core/errorClassifier";
 import type { AppContext } from "../context";
-import { artifactDir, toArtifactRef } from "../paths";
+import { artifactDir, paths, toArtifactRef } from "../paths";
 import { AppError, newId, now, sha256 } from "../util";
 import { environmentSecrets, getEnvironment } from "./environments";
 import { secretKeys } from "./secrets";
@@ -167,6 +167,24 @@ export function startTrial(ctx: AppContext, candidateId: string, environmentId: 
     ctx.repo.audit("trial.finish", "trial", trial.trial_id, { status: trial.status, error_code: trial.error_code });
   })();
   return trial;
+}
+
+/** Deletes finished trials of a candidate and their artifacts; trials still running or referenced by a version are kept. */
+export function clearTrials(ctx: AppContext, candidateId: string): { removed: number; kept: number } {
+  const trials = ctx.repo.trials.where("candidate_id = ?", candidateId);
+  const linked = new Set(
+    ctx.repo.db
+      .all<{ trial_id: string }>("SELECT trial_id FROM versions WHERE candidate_id = ? AND trial_id IS NOT NULL", candidateId)
+      .map((r) => r.trial_id),
+  );
+  const removable = trials.filter((t) => t.status !== "QUEUED" && t.status !== "RUNNING" && !linked.has(t.trial_id));
+  ctx.repo.db.tx(() => {
+    for (const t of removable) ctx.repo.trials.delete(t.trial_id);
+  });
+  for (const t of removable) rmSync(join(paths().artifacts, "trials", t.trial_id), { recursive: true, force: true });
+  const result = { removed: removable.length, kept: trials.length - removable.length };
+  ctx.repo.audit("trial.clear", "candidate", candidateId, { ...result, trial_ids: removable.map((t) => t.trial_id) });
+  return result;
 }
 
 // ---------------- Approve ----------------
