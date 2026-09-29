@@ -221,25 +221,98 @@ export function ArtifactImage({ refPath, alt }: { refPath?: string | null; alt: 
 /** Screenshots the script took itself; the runner does not capture anything on its own. */
 export function EvidenceShots({ evidence, what }: { evidence: Evidence; what: string }) {
   const shots = evidence.screenshots ?? (evidence.screenshot ? [evidence.screenshot] : []);
-  if (!shots.length) {
+  const [index, setIndex] = useState(0);
+  const [zoom, setZoom] = useState(false);
+  const [missing, setMissing] = useState<ReadonlySet<string>>(new Set());
+  const shotsKey = shots.join("\n");
+  useEffect(() => {
+    setIndex(0);
+    setZoom(false);
+    setMissing(new Set());
+  }, [shotsKey]);
+
+  const count = shots.length;
+  const i = Math.min(index, Math.max(count - 1, 0));
+  const go = useCallback((delta: number) => setIndex((cur) => Math.min(Math.max(cur + delta, 0), count - 1)), [count]);
+
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") go(-1);
+      else if (e.key === "ArrowRight") go(1);
+      else if (e.key === "Escape") setZoom(false);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [zoom, go]);
+
+  if (!count) {
     return (
       <div className="muted small">
         Script không chụp màn hình. Thêm <span className="mono">await page.screenshot()</span> vào script ở chỗ cần lưu kết quả.
       </div>
     );
   }
+  const ref = shots[i];
+  const src = artifactUrl(ref);
+  const alt = `Screenshot ${i + 1}/${count} của ${what}`;
+  const markMissing = (r: string) => setMissing((m) => new Set(m).add(r));
+  const nav = (big: boolean) =>
+    count > 1 && (
+      <>
+        <button type="button" className={`slide-nav prev${big ? " big" : ""}`} aria-label="Ảnh trước" disabled={i === 0} onClick={(e) => (e.stopPropagation(), go(-1))}>
+          ‹
+        </button>
+        <button type="button" className={`slide-nav next${big ? " big" : ""}`} aria-label="Ảnh sau" disabled={i === count - 1} onClick={(e) => (e.stopPropagation(), go(1))}>
+          ›
+        </button>
+      </>
+    );
+
   return (
-    <div className="col" style={{ gap: 8 }}>
-      {shots.map((ref, i) => (
-        <figure key={ref} style={{ margin: 0 }}>
-          {shots.length > 1 && (
-            <figcaption className="small muted" style={{ marginBottom: 4 }}>
-              Ảnh {i + 1}/{shots.length} do script chụp
-            </figcaption>
-          )}
-          <ArtifactImage refPath={ref} alt={`Screenshot ${i + 1} của ${what}`} />
-        </figure>
-      ))}
+    <div
+      className="slides"
+      tabIndex={0}
+      aria-roledescription="slideshow"
+      aria-label={`Ảnh do script chụp (${what})`}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") go(-1);
+        else if (e.key === "ArrowRight") go(1);
+        else if (e.key === "Enter" && !missing.has(ref)) setZoom(true);
+        else return;
+        e.preventDefault();
+      }}
+    >
+      <div className="slide-stage">
+        {missing.has(ref) ? (
+          <div className="muted small">Screenshot không còn (có thể đã hết hạn lưu trữ).</div>
+        ) : (
+          <img className="shot" key={ref} src={src} alt={alt} onClick={() => setZoom(true)} onError={() => markMissing(ref)} />
+        )}
+        {nav(false)}
+        <span className="slide-count" aria-live="polite">
+          {i + 1}/{count}
+        </span>
+      </div>
+      {count > 1 && (
+        <div className="slide-thumbs">
+          {shots.map((r, k) => (
+            <button type="button" key={r} className={k === i ? "active" : ""} aria-label={`Xem ảnh ${k + 1}`} aria-current={k === i} onClick={() => setIndex(k)}>
+              {missing.has(r) ? <span className="small muted">{k + 1}</span> : <img src={artifactUrl(r)} alt="" onError={() => markMissing(r)} />}
+            </button>
+          ))}
+        </div>
+      )}
+      {zoom && (
+        <div className={`overlay${count > 1 ? " slide-zoom" : ""}`} onClick={() => setZoom(false)}>
+          <img className="full" src={src} alt={alt} />
+          {nav(true)}
+          {count > 1 && <span className="slide-count big">{i + 1}/{count}</span>}
+        </div>
+      )}
     </div>
   );
 }

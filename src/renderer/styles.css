@@ -180,6 +180,26 @@ table.t tr.sel td { background: var(--cobalt-soft); }
 
 .shot { width: 100%; border: 1px solid var(--rule); border-radius: 4px; cursor: zoom-in; display: block; background: #f3f5f7; }
 
+.slides { display: flex; flex-direction: column; gap: 6px; border-radius: 4px; }
+.slide-stage { position: relative; height: clamp(220px, 42vh, 440px); display: grid; place-items: center; background: #f3f5f7; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.slide-stage img.shot { width: auto; max-width: 100%; max-height: 100%; object-fit: contain; border: 0; border-radius: 0; }
+.slide-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; display: grid; place-items: center; padding: 0 0 3px; border: 0; border-radius: 50%; background: rgba(24, 32, 43, 0.6); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; z-index: 1; }
+.slide-nav:hover:not(:disabled) { background: rgba(24, 32, 43, 0.85); }
+.slide-nav:disabled { opacity: 0.25; cursor: default; }
+.slide-nav.prev { left: 8px; }
+.slide-nav.next { right: 8px; }
+.slide-nav.big { position: fixed; width: 46px; height: 46px; font-size: 30px; }
+.slide-nav.big.prev { left: 22px; }
+.slide-nav.big.next { right: 22px; }
+.slide-count { position: absolute; right: 8px; bottom: 8px; padding: 2px 8px; border-radius: 10px; background: rgba(24, 32, 43, 0.7); color: #fff; font-family: var(--mono); font-size: 11.5px; }
+.overlay.slide-zoom { padding: 30px 84px 48px; }
+.slide-count.big { position: fixed; left: 50%; right: auto; bottom: 14px; transform: translateX(-50%); font-size: 13px; }
+.slide-thumbs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.slide-thumbs button { flex: none; width: 76px; height: 48px; padding: 0; display: grid; place-items: center; border: 2px solid var(--rule-2); border-radius: 4px; overflow: hidden; background: #f3f5f7; cursor: pointer; opacity: 0.7; }
+.slide-thumbs button:hover { opacity: 1; }
+.slide-thumbs button.active { border-color: var(--cobalt); opacity: 1; }
+.slide-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
 /* ---------- modal & toast ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(15, 20, 28, 0.45); display: grid; place-items: center; z-index: 40; padding: 30px; }
 .modal { background: #fff; border-radius: 8px; width: min(1100px, 100%); max-height: calc(100vh - 60px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }

@@ -32,9 +32,12 @@ export async function run(page: Page, input: { campaign_name: string; objective:
   await page.getByLabel("Campaign Name").fill(input.campaign_name);
   // Step 4: Chọn Objective
   await page.getByLabel("Objective").selectOption(input.objective);
-  // Step 5: Click Save
+  // Step 5: Chụp màn hình form
+  await page.screenshot();
+  // Step 6: Click Save
   await page.getByRole("button", { name: "Save" }).click({ timeout: 3000 });
   await expect(page.getByRole("heading", { name: "Campaign List" })).toBeVisible();
+  // Step 7: Chụp màn hình danh sách campaign
   await page.screenshot();
 }
 `;
@@ -44,7 +47,9 @@ TC_CAMP_001,Tạo campaign mới,"1. Mở trang Campaign
 2. Click Create Campaign
 3. Nhập Campaign Name = {{campaign_name}}
 4. Chọn Objective = {{objective}}
-5. Click Save","campaign_name: Summer Sale
+5. Chụp màn hình form
+6. Click Save
+7. Chụp màn hình danh sách campaign","campaign_name: Summer Sale
 objective: Sales",Campaign mới xuất hiện trong danh sách với đúng Objective
 TC_BAD_002,Dòng thiếu dữ liệu,"Nhập {{missing_var}}",,
 `;
@@ -213,9 +218,29 @@ try {
   await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
   check(true, "Trial PASSED qua modal");
   await trialModal.locator(".steps, table.t").first().waitFor();
-  await trialModal.locator("img.shot").first().waitFor();
-  check((await trialModal.locator("img.shot").count()) === 1, "Trial hiện đúng 1 ảnh do script chụp");
+  const slides = trialModal.locator(".slides");
+  await slides.locator("img.shot").waitFor();
+  check(
+    (await slides.locator("img.shot").count()) === 1 && (await slides.locator(".slide-thumbs button").count()) === 2 && (await slides.locator(".slide-count").innerText()) === "1/2",
+    "Trial hiện 2 ảnh dạng slide: một ảnh lớn, 2 ảnh nhỏ, bộ đếm 1/2",
+  );
+  check(await slides.getByRole("button", { name: "Ảnh trước" }).isDisabled(), "Slide: nút Ảnh trước bị khoá ở ảnh đầu");
+  const firstSrc = await slides.locator("img.shot").getAttribute("src");
+  await slides.getByRole("button", { name: "Ảnh sau" }).click();
+  check(
+    (await slides.locator(".slide-count").innerText()) === "2/2" && (await slides.locator("img.shot").getAttribute("src")) !== firstSrc,
+    "Slide: bấm Ảnh sau chuyển sang ảnh 2/2",
+  );
   await shot("04-training-trial-passed");
+  await slides.locator("img.shot").click();
+  const zoomed = win.locator(".overlay img.full");
+  await zoomed.waitFor();
+  await win.keyboard.press("ArrowLeft");
+  check((await win.locator(".slide-count.big").innerText()) === "1/2", "Slide phóng to: phím ← về ảnh 1/2");
+  await shot("04b-trial-slide-zoom");
+  await win.keyboard.press("Escape");
+  await zoomed.waitFor({ state: "detached" });
+  check(await trialModal.isVisible(), "Esc đóng ảnh phóng to, modal Trial vẫn mở");
   const layout = await win.locator(".modal").evaluate((m) => {
     const body = m.querySelector(".body");
     return { bottom: m.getBoundingClientRect().bottom, vh: window.innerHeight, overflow: getComputedStyle(body).overflowY, scrollable: body.scrollHeight > body.clientHeight };
@@ -245,6 +270,9 @@ try {
   await win.locator(".expected").waitFor();
   await win.getByText("ĐÁNH GIÁ CỦA NGƯỜI DÙNG").waitFor({ timeout: 90_000 });
   check(true, "Test run COMPLETED, chờ người dùng đánh giá");
+  const runSlides = win.locator(".panel", { hasText: "Evidence" }).locator(".slides");
+  await runSlides.locator("img.shot").waitFor();
+  check((await runSlides.locator(".slide-count").innerText()) === "1/2" && (await runSlides.locator(".slide-thumbs button").count()) === 2, "Testing: evidence hiện dạng slide 1/2");
   const runList = await win.locator("ul.list.tall").evaluate((ul) => ({ scroll: ul.scrollWidth, client: ul.clientWidth }));
   check(runList.scroll <= runList.client + 1, `Danh sách Test runs không tràn ngang với input dài (${runList.scroll}/${runList.client})`);
   await shot("06-testing-completed");
