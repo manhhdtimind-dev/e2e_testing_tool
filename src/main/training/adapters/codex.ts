@@ -23,6 +23,9 @@ export const codexAdapter: AgentAdapter = {
             env: req.mcp.env,
             startup_timeout_sec: 90,
             tool_timeout_sec: 180,
+            // approvalPolicy "never" rejects any tool that asks for approval, and Codex's
+            // default ("auto") asks for Playwright's destructive/open-world tools.
+            default_tools_approval_mode: "approve",
           },
         },
       },
