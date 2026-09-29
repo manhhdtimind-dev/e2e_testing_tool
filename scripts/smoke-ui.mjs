@@ -154,11 +154,17 @@ try {
     (await win.getByRole("button", { name: "Chấp nhận" }).isEnabled()) && (await win.getByRole("button", { name: "Từ chối" }).isEnabled()),
     "Chấp nhận / Từ chối bấm được khi chưa chạy Trial",
   );
-  await win.getByRole("button", { name: "Run Trial" }).click();
-  await win.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
-  check(true, "Trial PASSED qua UI");
-  await win.locator(".steps, table.t").first().waitFor();
+  check((await win.locator(".panel", { hasText: /^Trial/ }).count()) === 0, "Trên trang không còn khung Trial riêng");
+  await win.getByRole("button", { name: "Chạy Trial…" }).click();
+  const trialModal = win.getByRole("dialog");
+  await trialModal.getByRole("button", { name: "Run Trial" }).click();
+  await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
+  check(true, "Trial PASSED qua modal");
+  await trialModal.locator(".steps, table.t").first().waitFor();
   await shot("04-training-trial-passed");
+  await trialModal.getByRole("button", { name: "Đóng" }).click();
+  await trialModal.waitFor({ state: "detached" });
+  check(await win.locator(".badge", { hasText: "PASSED" }).first().isVisible(), "Đóng modal: khung Candidate hiện Trial gần nhất PASSED");
   await win.getByRole("button", { name: "Chấp nhận" }).click();
   await win.getByText("Version v1").first().waitFor();
   check(!!(await bridge("getScriptState", "TC_CAMP_001")).versions[0]?.trial_id, "Chấp nhận tạo version v1, gắn Trial PASSED");
@@ -205,12 +211,15 @@ try {
     edited?.status === "DRAFT" && edited.attempt_id === null && edited.source.includes("(sửa tay)") && (await win.locator(".badge", { hasText: "SỬA TAY" }).isVisible()),
     "Sửa tay: lưu thành candidate #2 DRAFT, được chọn và gắn nhãn SỬA TAY",
   );
-  check(!(await win.getByRole("button", { name: "Run Trial" }).isDisabled()), "Sửa tay: candidate mới Run Trial được");
-  check(
-    (await win.getByText("Candidate #2 chưa chạy Trial").isVisible()) && (await win.getByRole("button", { name: "Tới phần Trial" }).isVisible()),
-    "Candidate chưa Trial: có gợi ý (không bắt buộc) và nút tới phần Trial",
-  );
+  check(await win.getByText("Candidate #2 chưa chạy Trial").isVisible(), "Candidate chưa Trial: có gợi ý (không bắt buộc)");
   await shot("08b-manual-edit");
+  await win.getByRole("button", { name: "Chạy Trial…" }).click();
+  check(
+    (await win.getByRole("dialog").getByText("Trial — candidate #2").isVisible()) && (await win.getByRole("dialog").getByRole("button", { name: "Run Trial" }).isEnabled()),
+    "Sửa tay: modal Trial mở cho candidate mới, Run Trial được",
+  );
+  await win.keyboard.press("Escape");
+  await win.getByRole("dialog").waitFor({ state: "detached" });
   await win.getByRole("button", { name: "Chấp nhận" }).click();
   await win.getByText("Version v2").first().waitFor();
   const v2 = (await bridge("getScriptState", "TC_CAMP_001")).versions.find((v) => v.version_no === 2);

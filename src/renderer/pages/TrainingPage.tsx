@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { ArtifactImage, Badge, CodeView, DiffView, InputForm, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
+import { ArtifactImage, Badge, CodeView, DiffView, InputForm, Modal, Panel, StepsTable, fmtTime, useAction } from "../components/ui";
 
 export interface TrainingIntent {
   test_id: string;
@@ -100,7 +100,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const [trialSteps, setTrialSteps] = useState<Record<string, number>>({});
   const { run, busy } = useAction();
   const eventsBox = useRef<HTMLDivElement>(null);
-  const trialPanel = useRef<HTMLDivElement>(null);
+  const [trialOpen, setTrialOpen] = useState(false);
 
   const tc = cases.find((c) => c.test_id === testId) ?? null;
   const env = envs.find((e) => e.environment_id === envId) ?? null;
@@ -404,8 +404,8 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   hasPassedTrial={candidateTrials.some((t) => t.status === "PASSED" && t.source_hash === candidate.source_hash && t.environment_id === envId)}
                   busy={busy}
                   editLocked={!!runningAttempt}
-                  trialCount={candidateTrials.length}
-                  onGoToTrial={() => trialPanel.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  latestTrial={candidateTrials[0]}
+                  onOpenTrial={() => setTrialOpen(true)}
                   onSaveEdit={async (source) => {
                     const c = await run(() => api.saveManualCandidate(candidate.candidate_id, source, envId), "Đã lưu code sửa tay thành candidate mới");
                     if (!c) return false;
@@ -427,9 +427,11 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
               )}
             </Panel>
 
-            {candidate && (
-              <div ref={trialPanel}>
-              <Panel title="Trial" actions={<span className="muted small">Chạy không dùng AI, trên browser context mới với runner auth</span>}>
+            {candidate && trialOpen && (
+              <Modal title={`Trial — candidate #${candidate.revision_no}`} onClose={() => setTrialOpen(false)}>
+                <p className="hint" style={{ marginTop: 0 }}>
+                  Chạy không dùng AI, trên browser context mới với runner auth của environment "{env?.name ?? "—"}".
+                </p>
                 <InputForm schema={tc.input_schema} values={trialInput} onChange={setTrialInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
                 <div className="row" style={{ marginTop: 10 }}>
                   {env && !env.runner_auth_ready && <span className="badge warn">Environment chưa có runner auth</span>}
@@ -460,8 +462,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                     {trial && <TrialDetail trial={trial} liveSteps={trialSteps[trial.trial_id]} envName={envs.find((e) => e.environment_id === trial.environment_id)?.name} />}
                   </>
                 )}
-              </Panel>
-              </div>
+              </Modal>
             )}
 
             <Panel title={state?.candidates.length ? "Prompt sửa / training lại" : "Bắt đầu Training"}>
@@ -555,8 +556,8 @@ function CandidateView({
   hasPassedTrial,
   busy,
   editLocked,
-  trialCount,
-  onGoToTrial,
+  latestTrial,
+  onOpenTrial,
   onSaveEdit,
   onApprove,
   onReject,
@@ -569,8 +570,8 @@ function CandidateView({
   hasPassedTrial: boolean;
   busy: boolean;
   editLocked: boolean;
-  trialCount: number;
-  onGoToTrial: () => void;
+  latestTrial?: TrialRun;
+  onOpenTrial: () => void;
   onSaveEdit: (source: string) => Promise<boolean>;
   onApprove: () => void;
   onReject: () => void;
@@ -644,17 +645,18 @@ function CandidateView({
         </div>
       ) : (
         <div className="row">
-          {candidate.status !== "APPROVED" && !hasPassedTrial && (
-            <>
-              <span className="small muted">
-                {trialCount === 0 ? `Candidate #${candidate.revision_no} chưa chạy Trial` : "Chưa có Trial PASSED trên environment này"} (không bắt buộc).
-              </span>
-              <button className="btn sm" onClick={onGoToTrial}>
-                Tới phần Trial ↓
-              </button>
-            </>
+          {latestTrial ? (
+            <span className="small muted row" style={{ gap: 6 }}>
+              Trial gần nhất <Badge status={latestTrial.status} />
+              {!hasPassedTrial && candidate.status !== "APPROVED" && "· chưa PASSED trên environment này (không bắt buộc)"}
+            </span>
+          ) : (
+            candidate.status !== "APPROVED" && <span className="small muted">Candidate #{candidate.revision_no} chưa chạy Trial (không bắt buộc).</span>
           )}
           <span style={{ flex: 1 }} />
+          <button className="btn" onClick={onOpenTrial}>
+            Chạy Trial…
+          </button>
           <button className="btn" disabled={busy || candidate.status !== "DRAFT"} onClick={onReject}>
             Từ chối
           </button>
