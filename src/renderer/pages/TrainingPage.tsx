@@ -575,7 +575,7 @@ function CandidateView({
   onReject,
   onExport,
 }: {
-  candidate: CandidateRevision;
+  candidate: CandidateRevision & { warnings?: string[] };
   previous?: CandidateRevision;
   showDiff: boolean;
   setShowDiff: (v: boolean) => void;
@@ -637,6 +637,13 @@ function CandidateView({
         />
       ) : (
         <div className="candidate-code">{showDiff && previous ? <DiffView before={previous.source} after={candidate.source} /> : <CodeView source={candidate.source} />}</div>
+      )}
+      {!editing && !!candidate.warnings?.length && (
+        <div className="warn-box small">
+          <strong>Cảnh báo kiểm tra script:</strong>
+          {"\n"}
+          {candidate.warnings.map((w) => `• ${w}`).join("\n")}
+        </div>
       )}
       {editing ? (
         <div className="row">

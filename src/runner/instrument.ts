@@ -5,7 +5,7 @@ const ACTIONS = new Set([
   "click", "dblclick", "fill", "type", "pressSequentially", "press", "check", "uncheck", "setChecked", "selectOption",
   "hover", "focus", "blur", "clear", "setInputFiles", "dragTo", "dragAndDrop", "tap", "waitFor", "scrollIntoViewIfNeeded",
   "textContent", "innerText", "inputValue", "isVisible", "isChecked", "isEnabled", "count", "getAttribute", "allTextContents",
-  "insertText", "down", "up", "selectText",
+  "insertText", "down", "up", "selectText", "close",
 ]);
 
 const FACTORIES = new Set([

@@ -1,5 +1,6 @@
 import ts from "typescript";
 import type { InputSchema, InputValues, ScriptValidation, ValidationIssue } from "../shared/types";
+import { stepDirectives } from "./stepDirectives";
 
 export const ALLOWED_IMPORTS = new Set(["@playwright/test", "playwright", "playwright/test"]);
 const FORBIDDEN_IDENTIFIERS = new Set(["eval", "require", "process", "globalThis", "Function", "module", "exports", "__dirname", "__filename"]);
@@ -10,6 +11,8 @@ export interface ValidateOptions {
   schema: InputSchema;
   sampleInput: InputValues;
   secretValues?: string[];
+  /** Manual steps; used to check the script's screenshots and page.close() against them. */
+  steps?: string[];
 }
 
 function isExported(node: ts.Node): boolean {
@@ -92,6 +95,8 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
   const secretValues = [...(opts.secretValues ?? []), ...secretSamples].filter((s) => s && s.length >= 3);
   const sampleValues = Object.entries(opts.sampleInput).filter(([k]) => schemaNames.has(k));
 
+  let screenshotCalls = 0;
+  let pageCloseCalls = 0;
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       if (!ALLOWED_IMPORTS.has(node.moduleSpecifier.text)) {
@@ -161,7 +166,16 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
           }
         }
       }
-      if (method === "waitForTimeout") add("warning", "FIXED_WAIT", "Tránh waitForTimeout; nên chờ theo điều kiện", node);
+      if (method === "screenshot") screenshotCalls++;
+      if (method === "close") {
+        const viaGetter = ts.isCallExpression(owner) && ts.isPropertyAccessExpression(owner.expression) ? owner.expression.name.text : null;
+        const ownerName = ts.isIdentifier(owner) ? owner.text : viaGetter;
+        if (ownerName && /^(browser|context)$/i.test(ownerName)) {
+          add("warning", "CLOSE_BROWSER", "Đóng browser bằng await page.close(), không đóng context/browser (runner cần context để lưu trace khi lỗi)", node);
+        }
+        pageCloseCalls++;
+      }
+      if (method === "waitForTimeout") add("warning", "FIXED_WAIT", "Tránh waitForTimeout; nên chờ theo điều kiện (tốc độ thao tác do runner điều chỉnh)", node);
       if (method === "pause") add("error", "PAUSE", "Không dùng pause(): runner chạy tự động, lệnh này làm Trial/Testing treo đến khi hết thời gian", node);
       if (method === "goto" && node.arguments[0]) {
         const first = node.arguments[0];
@@ -173,6 +187,20 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
     ts.forEachChild(node, visit);
   };
   visit(sf);
+
+  if (opts.steps) {
+    const d = stepDirectives(opts.steps);
+    const list = (ns: number[]) => ns.join(", ");
+    if (d.screenshot.length && screenshotCalls < d.screenshot.length) {
+      add("warning", "SCREENSHOT_STEPS", `Steps yêu cầu chụp màn hình ở bước ${list(d.screenshot)} nhưng script chỉ có ${screenshotCalls} lệnh screenshot`);
+    } else if (d.screenshot.length && screenshotCalls > d.screenshot.length) {
+      add("warning", "SCREENSHOT_STEPS", `Script chụp ${screenshotCalls} ảnh, nhiều hơn số bước yêu cầu chụp (${list(d.screenshot)})`);
+    } else if (!d.screenshot.length && screenshotCalls === 0) {
+      add("warning", "NO_SCREENSHOT", "Script không chụp màn hình; Trial/Testing sẽ không có ảnh kết quả");
+    }
+    if (d.close.length && pageCloseCalls === 0) add("warning", "CLOSE_STEP", `Steps yêu cầu đóng browser ở bước ${list(d.close)} nhưng script không gọi page.close()`);
+    if (!d.close.length && pageCloseCalls > 0) add("warning", "CLOSE_STEP", "Script tự đóng browser dù steps không yêu cầu");
+  }
 
   for (const f of usedFields) {
     if (!schemaNames.has(f)) add("error", "UNKNOWN_FIELD", `input.${f} không có trong input_schema`);

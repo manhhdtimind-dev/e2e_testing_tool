@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { GUIDE_SHEET, SAMPLE_ROWS, writeSampleCsv, writeSampleXlsx } from "../src/main/services/sampleTemplate";
 import { previewImport } from "../src/main/services/testCases";
+import { stepDirectives } from "../src/core/stepDirectives";
 
 const dir = mkdtempSync(join(tmpdir(), "e2e-sample-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -15,7 +16,9 @@ describe("sample test case template", () => {
     const preview = await previewImport(file);
     expect(preview.issues).toEqual([]);
     expect(preview.cases.map((c) => c.test_id)).toEqual(SAMPLE_ROWS.map((r) => r.test_id));
-    expect(preview.cases[0].steps).toHaveLength(5);
+    expect(preview.cases[0].steps).toHaveLength(6);
+    expect(stepDirectives(preview.cases[0].steps)).toEqual({ screenshot: [6], close: [] });
+    expect(stepDirectives(preview.cases[1].steps)).toEqual({ screenshot: [3], close: [4] });
     expect(preview.cases[0].input).toEqual({ campaign_name: "Summer Sale", objective: "Sales" });
     expect(preview.cases[1].input).toEqual({ campaign_name: "Summer Sale" });
   });

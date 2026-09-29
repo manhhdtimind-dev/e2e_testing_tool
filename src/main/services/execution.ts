@@ -90,6 +90,7 @@ async function execute(
       navigationTimeoutMs: 30_000,
       traceOnSuccess: false,
       keepOpen: !settings.runner_headless && settings.runner_keep_open,
+      slowMoMs: settings.runner_headless ? 0 : settings.runner_slow_mo_ms,
     },
     storageState,
     { fsRestricted: settings.runner_fs_restricted, onStep: () => onStep(++steps) },

@@ -1,5 +1,6 @@
 import type { Environment, InputValues, StepLog, TestCase, ValidationIssue } from "../../shared/types";
 import { SECRET_MASK } from "../../core/inputValidation";
+import { stepDirectives } from "../../core/stepDirectives";
 
 export const CANDIDATE_FILE = "candidate.ts";
 
@@ -44,6 +45,31 @@ Values like {{name}} in the steps refer to input fields.`;
 
 export const UNATTENDED_NOTE = `This is an unattended, non-interactive run: nobody can answer questions or approve a plan until the turn has ended. Do not stop to ask for confirmation, and do not follow interactive workflows from personal skills or instruction files (brainstorming, design approval, planning sign-off, etc.). Decide reasonably, apply the change to \`${CANDIDATE_FILE}\`, and explain your choices in the final reply. Use status "blocked" only for the site/step problems described in these instructions.`;
 
+/** Where the script must take screenshots and close the browser, derived from the manual steps. */
+export function directivesBlock(tc: TestCase): string {
+  const d = stepDirectives(tc.steps);
+  const quote = (n: number) => `step ${n} ("${tc.steps[n - 1]}")`;
+  const lines: string[] = [];
+  if (d.screenshot.length) {
+    for (const n of d.screenshot) {
+      lines.push(`- ${quote(n)}: call \`await page.screenshot()\` exactly at this point, after the result of the previous steps is visible (wait for it with expect first).`);
+    }
+    lines.push("- Take screenshots ONLY at these steps — no extra ones.");
+  } else {
+    lines.push("- No step asks for a screenshot: take one `await page.screenshot()` after the last step so the run has evidence.");
+  }
+  if (d.close.length) {
+    for (const n of d.close) {
+      lines.push(`- ${quote(n)}: call \`await page.close()\` at this point; no browser action may follow it in the script.`);
+    }
+    lines.push("- While exploring with the MCP tools, do NOT close the browser or its tab — it is the user's profile. Only write the close into the script.");
+  } else {
+    lines.push("- No step asks to close the browser: do not call page.close() / context.close() / browser.close(); the runner decides what happens after the script.");
+  }
+  lines.push("- If the user's instructions in this prompt say otherwise for a specific screenshot or close, the user's instructions win.");
+  return `## Screenshot and close-browser steps (follow exactly)\n${lines.join("\n")}`;
+}
+
 export function rulesBlock(tc: TestCase, maxActions: number): string {
   return `## How to work
 1. Use ONLY the Playwright MCP tools of server "playwright" (browser_navigate, browser_snapshot, browser_click, browser_type, browser_fill_form, browser_select_option, browser_press_key, browser_wait_for, ...). They drive the user's already logged-in Chrome profile. Read page structure from the accessibility snapshot; call browser_take_screenshot only when the snapshot is not enough.
@@ -63,13 +89,16 @@ export async function run(page: Page, input: Input): Promise<void> {
    - Use relative URLs with page.goto (the runner sets baseURL to the environment base URL).
    - Prefer getByRole / getByLabel / getByTestId / getByText locators taken from the snapshot or from the Playwright code the tools return. Never use mouse coordinates or click positions.
    - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts. Never call page.pause() — the runner is unattended.
+   - Do not add waitForTimeout or other delays to slow the run down: the runner replays every action at a speed a person can follow by itself.
    - Do not log in inside the script (the runner has its own authenticated session). Only import from "@playwright/test". No fs, process, require, eval or network calls.
    - Add a comment \`// Step N: <manual step>\` before the code of each manual step.
-   - The Trial/Testing runner captures nothing by itself. Record the result explicitly with \`await page.screenshot()\` (optionally \`{ fullPage: true }\`) — at least once after the last step, and wherever else the steps ask to capture. Never pass a \`path\`; the runner decides where evidence is stored.
-4. At the end call browser_take_screenshot once to capture the final state.
+   - The Trial/Testing runner captures nothing and closes nothing by itself: screenshots and closing the browser happen only where the script does them, as listed in "Screenshot and close-browser steps" below. Use \`await page.screenshot()\` (optionally \`{ fullPage: true }\`) and never pass a \`path\` — the runner decides where evidence is stored. Close only with \`await page.close()\`.
+4. At the end call browser_take_screenshot once to capture the final state (this is for the training record, not the script).
 5. Stop immediately (without guessing) if: a login page or expired session appears → status "auth_required"; a step is ambiguous, impossible, or needs a domain outside the allowed list → status "blocked" with the reason.
 6. Finish your reply with ONE line of JSON and nothing after it:
-{"status":"done"|"blocked"|"auth_required","reason":"<short reason>","steps_done":[<step numbers completed>]}`;
+{"status":"done"|"blocked"|"auth_required","reason":"<short reason>","steps_done":[<step numbers completed>]}
+
+${directivesBlock(tc)}`;
 }
 
 export function runContextBlock(ctx: RunContext): string {
@@ -111,7 +140,9 @@ ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}\n` : ""}
 ## User request
 ${opts.userPrompt.trim() || "Fix the problems above so the script runs end-to-end."}
 
-You may use the Playwright MCP tools again to re-inspect the pages (budget ${opts.maxActions} browser actions). Keep all script rules from before (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits, only @playwright/test imports, // Step N comments, explicit await page.screenshot() for evidence). Take one final browser_take_screenshot.
+You may use the Playwright MCP tools again to re-inspect the pages (budget ${opts.maxActions} browser actions). Keep all script rules from before (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits or pacing delays, only @playwright/test imports, // Step N comments). Take one final browser_take_screenshot.
+
+${directivesBlock(opts.tc)}
 Finish with ONE line of JSON: {"status":"done"|"blocked"|"auth_required","reason":"...","steps_done":[...]}`;
 }
 

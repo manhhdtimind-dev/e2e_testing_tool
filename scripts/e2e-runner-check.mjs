@@ -58,7 +58,7 @@ try {
   const work = mkdtempSync(join(tmpdir(), "e2e-runner-check-"));
   const compile = (src) => ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
 
-  async function runJob(name, input, { withAuth = true, fsRestricted = true, keepOpen = false, onChild, source = CANDIDATE } = {}) {
+  async function runJob(name, input, { withAuth = true, fsRestricted = true, keepOpen = false, onChild, source = CANDIDATE, headless = true, slowMoMs = 0 } = {}) {
     const runDir = join(work, name);
     mkdirSync(runDir, { recursive: true });
     const compiledPath = join(runDir, "script.cjs");
@@ -77,12 +77,13 @@ try {
       allowedDomains: ["localhost"],
       storageStatePath: statePath,
       browser,
-      headless: true,
+      headless,
       timeoutMs: 60000,
       actionTimeoutMs: 5000,
       navigationTimeoutMs: 15000,
       traceOnSuccess: false,
       keepOpen,
+      slowMoMs,
     };
     const execArgv = fsRestricted
       ? ["--permission", "--allow-fs-read=*", `--allow-fs-write=${runDir}`, `--allow-fs-write=${tmpdir()}`, "--allow-child-process", "--disable-warning=SecurityWarning"]
@@ -114,6 +115,16 @@ try {
   check(rk.ok && stillAlive, "keepOpen: result reported while the browser stays open");
   held.disconnect();
   check(await Promise.race([exited, new Promise((r) => setTimeout(() => r(false), 10000))]), "keepOpen: runner closes the browser and exits when the app disconnects");
+
+  let closer;
+  const closeSource = CANDIDATE.replace("  await page.screenshot();\n", "  await page.screenshot();\n  await page.close();\n");
+  const rc = await runJob("script-closes", { campaign_name: "Closed By Script", objective: "Sales" }, { keepOpen: true, source: closeSource, onChild: (c) => (closer = c) });
+  const closerExited = await Promise.race([new Promise((r) => (closer.exitCode !== null ? r(true) : closer.once("exit", () => r(true)))), new Promise((r) => setTimeout(() => r(false), 5000))]);
+  check(rc.ok && rc.steps.at(-1)?.action === "close" && rc.screenshots.length === 1 && closerExited, "script page.close(): run passes, close is the last step and the runner exits without waiting");
+
+  const slow = await runJob("slow-mo", { campaign_name: "Slow Motion", objective: "Sales" }, { headless: false, slowMoMs: 400 });
+  const fastRun = await runJob("fast-headed", { campaign_name: "Full Speed", objective: "Sales" }, { headless: false, slowMoMs: 0 });
+  check(slow.ok && fastRun.ok && slow.duration_ms - fastRun.duration_ms >= 4 * 400, `headed slowMo paces actions (${fastRun.duration_ms} ms → ${slow.duration_ms} ms with 400 ms)`);
 
   const r2 = await runJob("test-input-2", { campaign_name: "Black Friday", objective: "Traffic" });
   check(r2.ok, "Testing with second input COMPLETED");

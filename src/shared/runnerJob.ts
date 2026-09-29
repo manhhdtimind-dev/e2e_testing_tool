@@ -14,6 +14,8 @@ export interface RunnerJob {
   traceOnSuccess: boolean;
   /** Headed Trial/Testing runs: leave the browser open after the script until the user closes it. */
   keepOpen: boolean;
+  /** Playwright slowMo in ms, applied only to headed runs. */
+  slowMoMs: number;
 }
 
 export type RunnerMessage =

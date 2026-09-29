@@ -159,6 +159,7 @@ export function saveManualCandidate(ctx: AppContext, baseCandidateId: string, so
     schema: tc.input_schema,
     sampleInput: baseAttempt?.sample_input ?? tc.sample_input,
     secretValues: environmentId ? Object.values(environmentSecrets(ctx, environmentId)) : [],
+    steps: tc.steps,
   });
   const errors = validation.issues.filter((i) => i.severity === "error");
   if (errors.length) throw new AppError(`Code chưa đạt kiểm tra:\n${errors.map((i) => `${i.line ? `dòng ${i.line}: ` : ""}${i.message}`).join("\n")}`);
@@ -432,7 +433,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     }
 
     const validationOf = (source: string): ScriptValidation =>
-      validateScript(source, { schema: tc.input_schema, sampleInput: attempt.sample_input, secretValues: secrets });
+      validateScript(source, { schema: tc.input_schema, sampleInput: attempt.sample_input, secretValues: secrets, steps: tc.steps });
     let source = existsSync(candidatePath) ? readFileSync(candidatePath, "utf8") : null;
     let validation = source ? validationOf(source) : null;
     for (let i = 0; source && validation && !validation.ok && i < settings.training_max_repairs; i++) {

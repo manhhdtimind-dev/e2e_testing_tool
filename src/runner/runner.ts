@@ -109,6 +109,7 @@ async function execute(job: RunnerJob): Promise<RunnerResult> {
     browser = await chromium.launch({
       channel: job.browser === "chromium" ? undefined : job.browser,
       headless: job.headless,
+      slowMo: job.headless ? 0 : job.slowMoMs,
     });
     context = await browser.newContext({
       baseURL: job.baseUrl,

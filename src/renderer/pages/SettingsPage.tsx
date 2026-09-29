@@ -3,6 +3,14 @@ import type { AgentProvider, BrowserProfile, Settings } from "../../shared/types
 import { api, type ApiResult } from "../api";
 import { Badge, Field, Panel, fmtTime, useAction } from "../components/ui";
 
+const SPEED_PRESETS = [
+  { ms: 0, label: "Tối đa (không nghỉ)" },
+  { ms: 250, label: "Nhanh — 250 ms / thao tác" },
+  { ms: 500, label: "Vừa — 500 ms / thao tác (mặc định)" },
+  { ms: 1000, label: "Chậm — 1 giây / thao tác" },
+  { ms: 2000, label: "Rất chậm — 2 giây / thao tác" },
+];
+
 type Integration = ApiResult<"getIntegrationStatus">;
 type EnvRow = ApiResult<"listEnvironments">[number];
 
@@ -118,6 +126,22 @@ export function SettingsPage() {
                 onChange={(e) => setSettings({ ...settings, runner_keep_open: e.target.checked })}
               />
               <em className="hint">Chỉ khi không chạy ẩn. Sau khi script xong, runner không thao tác thêm; đóng cửa sổ browser để kết thúc (tối đa 30 phút).</em>
+            </label>
+            <label className="field">
+              <span>Tốc độ thao tác</span>
+              <select
+                value={SPEED_PRESETS.some((p) => p.ms === settings.runner_slow_mo_ms) ? settings.runner_slow_mo_ms : "custom"}
+                disabled={settings.runner_headless}
+                onChange={(e) => e.target.value !== "custom" && setSettings({ ...settings, runner_slow_mo_ms: Number(e.target.value) })}
+              >
+                {SPEED_PRESETS.map((p) => (
+                  <option key={p.ms} value={p.ms}>
+                    {p.label}
+                  </option>
+                ))}
+                {!SPEED_PRESETS.some((p) => p.ms === settings.runner_slow_mo_ms) && <option value="custom">Tuỳ chỉnh — {settings.runner_slow_mo_ms} ms</option>}
+              </select>
+              <em className="hint">Khoảng nghỉ trước mỗi thao tác khi chạy có giao diện, để theo dõi được. Chạy ẩn luôn ở tốc độ tối đa.</em>
             </label>
             <label className="field">
               <span>Giới hạn ghi file của runner</span>

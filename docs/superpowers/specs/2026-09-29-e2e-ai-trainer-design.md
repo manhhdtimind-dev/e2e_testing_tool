@@ -36,6 +36,10 @@ Bấm Import mở modal chọn **dự án** có sẵn hoặc nhập tên dự á
 dự án mới chỉ được tạo khi xác nhận lưu). **Nhóm** = tên sheet: mọi sheet có cột `test_id` ở dòng 1 là một nhóm, sheet khác bị bỏ qua;
 `.csv`/`.yaml` là một nhóm theo tên file. `test_id` duy nhất trên mọi dự án: import bị chặn nếu `test_id` đã thuộc dự án khác,
 cùng dự án thì ghi đè. Danh sách Test Cases lọc theo dự án, nhóm và text. Test case có trước khi thêm dự án được đưa vào "Dự án mặc định".
+Steps có thể có bước "Chụp màn hình…" và "Đóng trình duyệt" (nhận diện cả khi không dấu, `src/core/stepDirectives.ts`): prompt Training
+liệt kê chính xác bước nào gọi `page.screenshot()` / `page.close()`; không có bước chụp ⇒ một ảnh sau bước cuối; không có bước đóng ⇒ script không đóng.
+Validator cảnh báo (hiện trong khung Candidate) khi script lệch với các bước này. Prompt của người dùng được ưu tiên hơn.
+Tốc độ thao tác: Playwright `slowMo` theo Cài đặt (mặc định 500 ms, chỉ khi chạy có giao diện); script không tự thêm waitForTimeout.
 Xoá test case là xoá hẳn: cùng script, lượt Training, candidate, Trial, version (kể cả APPROVED), test run và thư mục artifacts/workspace;
 modal liệt kê số lượng, bắt nhập lại `test_id` khi có version hoặc lịch sử Testing; bị chặn khi đang Training/Trial/Testing; audit log được giữ.
 

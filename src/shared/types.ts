@@ -268,6 +268,8 @@ export interface Settings {
   runner_browser: "chrome" | "chromium" | "msedge";
   runner_headless: boolean;
   runner_keep_open: boolean;
+  /** Delay before each browser action in headed runs so a person can follow along (0 = full speed). */
+  runner_slow_mo_ms: number;
   runner_fs_restricted: boolean;
   artifact_retention_days: number;
   has_openai_key: boolean;

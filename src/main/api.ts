@@ -47,6 +47,7 @@ import {
 } from "./services/history";
 import { cancelTraining, isScriptTraining, saveManualCandidate, startTraining, type StartTrainingRequest } from "./training/orchestrator";
 import { runPreflight } from "./training/preflight";
+import { validateScript } from "../core/scriptValidator";
 import { getIntegrationStatus, runIntegrationCheck } from "./training/integrationCheck";
 export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
   const saveDialog = async (defaultPath: string, filters: Electron.FileFilter[]) => {
@@ -155,7 +156,15 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     getScriptState: (testId: string) => {
       const script = ctx.repo.scripts.where("test_id = ?", testId)[0] ?? null;
       if (!script) return { script: null, threads: [], attempts: [], candidates: [], trials: [], versions: [] };
-      const candidates = ctx.repo.candidates.where("script_id = ? ORDER BY revision_no DESC", script.script_id);
+      const tc = ctx.repo.testCases.get(testId);
+      const candidates = ctx.repo.candidates.where("script_id = ? ORDER BY revision_no DESC", script.script_id).map((c) => ({
+        ...c,
+        warnings: tc
+          ? validateScript(c.source, { schema: tc.input_schema, sampleInput: {}, steps: tc.steps })
+              .issues.filter((i) => i.severity === "warning")
+              .map((i) => `${i.line ? `dòng ${i.line}: ` : ""}${i.message}`)
+          : [],
+      }));
       return {
         script,
         threads: ctx.repo.threads.where("script_id = ? ORDER BY created_at", script.script_id),

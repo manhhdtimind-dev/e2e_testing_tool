@@ -15,6 +15,7 @@ export const DEFAULT_SETTINGS: StoredSettings = {
   runner_browser: "chrome",
   runner_headless: true,
   runner_keep_open: true,
+  runner_slow_mo_ms: 500,
   runner_fs_restricted: true,
   artifact_retention_days: 30,
 };
@@ -40,6 +41,7 @@ export function updateSettings(repo: Repo, secrets: SecretStore, patch: Partial<
   next.training_max_repairs = clamp(next.training_max_repairs, 0, 5);
   next.run_timeout_sec = clamp(next.run_timeout_sec, 10, 3600);
   next.max_concurrent_runs = clamp(next.max_concurrent_runs, 1, 8);
+  next.runner_slow_mo_ms = clamp(next.runner_slow_mo_ms, 0, 3000);
   next.artifact_retention_days = clamp(next.artifact_retention_days, 1, 3650);
   repo.setSetting("app", next);
   return getSettings(repo, secrets);
