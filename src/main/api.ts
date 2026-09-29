@@ -1,12 +1,14 @@
 import { BrowserWindow, dialog, shell } from "electron";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import { extname, join } from "node:path";
 import type { AgentProvider, InputValues, ParsedTestCase, ReviewResult, Settings } from "../shared/types";
 import type { AppContext } from "./context";
-import { fromArtifactRef } from "./paths";
+import { fromArtifactRef, paths } from "./paths";
 import { AppError } from "./util";
 import { updateSettings } from "./services/settings";
 import { secretKeys } from "./services/secrets";
 import { confirmImport, deleteTestCase, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
+import { writeSampleCsv, writeSampleXlsx } from "./services/sampleTemplate";
 import {
   deleteProfile,
   detectLocalProfiles,
@@ -84,6 +86,31 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
       const res = w ? await dialog.showOpenDialog(w, opts) : await dialog.showOpenDialog(opts);
       if (res.canceled || !res.filePaths[0]) return null;
       return previewImport(res.filePaths[0]);
+    },
+    openSampleTemplate: async () => {
+      const dir = join(paths().data, "templates");
+      mkdirSync(dir, { recursive: true });
+      const file = join(dir, "test-cases-mau.xlsx");
+      try {
+        await writeSampleXlsx(file);
+      } catch (e) {
+        // Excel keeps the file locked while it is open; reopening the existing copy is fine.
+        if (!existsSync(file)) throw e;
+      }
+      const err = await shell.openPath(file);
+      if (err) throw new AppError(`Không mở được file mẫu (${file}): ${err}`);
+      return file;
+    },
+    saveSampleTemplate: async () => {
+      const file = await saveDialog("test-cases-mau.xlsx", [
+        { name: "Excel", extensions: ["xlsx"] },
+        { name: "CSV", extensions: ["csv"] },
+      ]);
+      if (!file) return null;
+      if (extname(file).toLowerCase() === ".csv") await writeSampleCsv(file);
+      else await writeSampleXlsx(file);
+      shell.showItemInFolder(file);
+      return file;
     },
     confirmImport: (fileName: string, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, cases),
     saveTestCase: (input: TestCaseInput) => saveTestCase(ctx, input),

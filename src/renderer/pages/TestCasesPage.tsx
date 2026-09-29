@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ImportPreview, InputField, InputSchema, InputValues, ParsedTestCase } from "../../shared/types";
 import { api, type ApiResult } from "../api";
-import { Badge, Modal, Panel, fmtTime, useAction } from "../components/ui";
+import { Badge, Modal, Panel, fmtTime, useAction, useToast } from "../components/ui";
 
 type CaseRow = ApiResult<"listTestCases">[number];
 
@@ -253,6 +253,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [filter, setFilter] = useState("");
   const { run, busy } = useAction();
+  const toast = useToast();
 
   const load = useCallback(async () => setCases(await api.listTestCases()), []);
   useEffect(() => {
@@ -275,6 +276,19 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
         <h1>Test Cases</h1>
         <p>Import manual test case, kiểm tra bản parse và input schema.</p>
         <div className="actions">
+          <button className="btn ghost" disabled={busy} onClick={() => run(() => api.openSampleTemplate())} title="Mở file .xlsx mẫu bằng ứng dụng mặc định (Excel)">
+            Mở file mẫu
+          </button>
+          <button
+            className="btn ghost"
+            disabled={busy}
+            onClick={async () => {
+              const f = await run(() => api.saveSampleTemplate());
+              if (f) toast(`Đã lưu file mẫu: ${f}`, "ok");
+            }}
+          >
+            Lưu file mẫu…
+          </button>
           <button
             className="btn"
             onClick={() => {
@@ -303,7 +317,14 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
             <input type="text" placeholder="Lọc theo test_id hoặc title" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: "100%" }} />
           </div>
           {shown.length === 0 ? (
-            <div className="empty">Chưa có test case. Import file theo template gồm cột test_id, title, steps, input, expected_result.</div>
+            <div className="empty">
+              Chưa có test case. Import file theo template gồm cột test_id, title, steps, input, expected_result.
+              <div style={{ marginTop: 10 }}>
+                <button className="btn sm" disabled={busy} onClick={() => run(() => api.openSampleTemplate())}>
+                  Mở file mẫu
+                </button>
+              </div>
+            </div>
           ) : (
             <ul className="list scroll tall">
               {shown.map((c) => (

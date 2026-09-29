@@ -4,7 +4,7 @@
 // Usage: npm run smoke:ui   (requires `node scripts/build.mjs` first)
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -74,6 +74,16 @@ try {
       if (!r.ok) throw new Error(r.error);
       return r.data;
     }, [method, args]);
+
+  // ---------- sample template ----------
+  await app.evaluate(({ shell }) => {
+    globalThis.__opened = [];
+    shell.openPath = async (p) => (globalThis.__opened.push(p), "");
+  });
+  await win.getByRole("button", { name: "Mở file mẫu" }).first().click();
+  await win.waitForTimeout(1500);
+  const opened = await app.evaluate(() => globalThis.__opened);
+  check(opened.length === 1 && opened[0].endsWith("test-cases-mau.xlsx") && existsSync(opened[0]), `Mở file mẫu tạo ${opened[0] ?? "(không có)"}`);
 
   // ---------- import ----------
   await app.evaluate(({ dialog }, p) => {
