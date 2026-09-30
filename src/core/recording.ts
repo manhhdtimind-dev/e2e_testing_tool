@@ -17,7 +17,16 @@ export interface RecordedAction {
 
 export type RecordingEvent =
   /** `page` is the tab index (0 = the tab the recording started in); `url` is the tab URL before the action ran. */
-  | { kind: "action"; t: number; page: number; url: string; action: RecordedAction; code: string }
+  | {
+      kind: "action";
+      t: number;
+      page: number;
+      url: string;
+      action: RecordedAction;
+      code: string;
+      /** Set when the recorder selector looked fragile; looked up for this action (position selectors like `nth=0` change meaning over time). */
+      stable?: StableFix;
+    }
   | { kind: "shot"; t: number; url: string }
   | { kind: "step"; t: number; step: number };
 
@@ -31,8 +40,6 @@ export interface RecordingBuildOptions {
   steps: string[];
   /** Append `await page.close()` (the user reached a "close the browser" step). */
   closeAtEnd: boolean;
-  /** Recorder selectors that looked fragile, with the stable locator found on the page (null = none). */
-  stable?: Record<string, StableFix>;
 }
 
 export interface StableFix {
@@ -315,7 +322,7 @@ function uploadStatements(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx
 
 /** Swaps a fragile recorder locator for the stable one found while recording, or flags it for a manual fix. */
 function withStableLocator(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): { event: typeof e; flag: string | null } {
-  const fix = e.action.selector ? c.opts.stable?.[e.action.selector] : undefined;
+  const fix = e.stable;
   if (!fix) return { event: e, flag: null };
   const code = fix.locator ? replaceLocator(e.code, fix.locator) : null;
   if (code) return { event: { ...e, code }, flag: null };

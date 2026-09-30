@@ -64,6 +64,23 @@ function ownerSelect() {
       })();</script>`;
 }
 
+/**
+ * Element Plus 2.x–style select with the label inside the form item content and the same "Select" placeholder in every
+ * field: the recorder names the placeholder by position (`getByText('Select').first()`), which points at another field
+ * once the previous one has a value.
+ */
+function placeholderSelect(label, options) {
+  return `<div class="form-item"><div class="form-item__content"><div class="flex w-full"><label class="text-sm">${esc(label)}</label></div>
+      <div class="dselect"><div class="dselect__wrapper"><div class="dselect__selection"><span class="dselect__placeholder">Select</span></div></div>
+      <ul class="dselect__menu" role="listbox" hidden>${options.map((o) => `<li role="option">${esc(o)}</li>`).join("")}</ul></div></div></div>
+      <script>(() => {
+        const root = document.currentScript.previousElementSibling.querySelector(".dselect");
+        const menu = root.querySelector(".dselect__menu"), text = root.querySelector(".dselect__placeholder");
+        root.querySelector(".dselect__wrapper").addEventListener("click", () => { menu.hidden = !menu.hidden; });
+        menu.addEventListener("click", (e) => { const li = e.target.closest("li"); if (li) { text.textContent = li.textContent; menu.hidden = true; } });
+      })();</script>`;
+}
+
 function send(res, status, html, headers = {}) {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8", ...headers });
   res.end(html);
@@ -118,6 +135,9 @@ const server = createServer(async (req, res) => {
       <label for="name">Campaign Name</label><input id="name" name="name" required>
       <label for="obj">Objective</label><select id="obj" name="objective"><option>Sales</option><option>Awareness</option><option>Traffic</option></select>
       ${ownerSelect()}
+      ${placeholderSelect("Region", ["EU", "US"])}
+      ${placeholderSelect("Channel", ["Search", "Video"])}
+      ${placeholderSelect("Tier", ["Gold", "Silver"])}
       <button type="submit">${broken ? "Lưu lại" : "Save"}</button></form>`));
   }
   if (url.pathname === "/campaigns/new" && req.method === "POST") {

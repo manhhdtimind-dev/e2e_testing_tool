@@ -388,6 +388,10 @@ try {
     await rp.getByLabel("Objective").selectOption("Traffic");
     await rp.locator(".form-item", { hasText: "Owner" }).getByRole("combobox").click();
     await rp.getByRole("option", { name: "Bob" }).click();
+    for (const choice of ["EU", "Search", "Gold"]) {
+      await rp.locator(".dselect__placeholder", { hasText: /^Select$/ }).first().click();
+      await rp.getByRole("option", { name: choice }).click();
+    }
     await bar("next");
     await bar("shot");
     check((await banner.innerText()).includes("Bước 6/7"), "Thanh nổi: 📷 ở bước Chụp màn hình tự chuyển sang bước sau");
@@ -423,7 +427,7 @@ try {
     `Bấm Cập nhật input mẫu: test case lưu giá trị vừa ghi (${JSON.stringify(updatedCase.sample_input)})`,
   );
   const recSession = await bridge("getRecordingState");
-  check(recSession.status === "SAVED" && recSession.action_count === 8 && recSession.shot_count === 2, `Ghi thao tác: đếm 8 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
+  check(recSession.status === "SAVED" && recSession.action_count === 14 && recSession.shot_count === 2, `Ghi thao tác: đếm 14 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
   const recorded = (await bridge("getScriptState", "TC_CAMP_001")).candidates[0];
   check(recorded.origin === "recorded" && recorded.revision_no === 3 && recorded.attempt_id === null, "Ghi thao tác: tạo candidate #3 có nhãn GHI THAO TÁC");
   check(
@@ -443,6 +447,11 @@ try {
       recorded.source.includes(".locator('.form-item').filter({ has: page.getByText('Owner', { exact: true }) }).getByRole('combobox').click();") &&
       !recorded.warnings.some((w) => w.includes("dễ hỏng")),
     `Ghi thao tác: ô chọn có id tự sinh (#el-id-…) được thay bằng locator theo label "Owner":\n${recorded.source}`,
+  );
+  const widgetClick = (label) => `.locator('.form-item__content').filter({ has: page.getByText('${label}', { exact: true }) }).locator('.dselect').click();`;
+  check(
+    recorded.source.includes(widgetClick("Region")) && recorded.source.includes(widgetClick("Channel")) && !recorded.source.includes("nth=") && !recorded.source.includes(".first()"),
+    `Ghi thao tác: placeholder "Select" theo vị trí được thay bằng locator riêng của từng ô (Region, Channel), click vào gốc widget:\n${recorded.source}`,
   );
   check(!(await win.locator(".rec-banner").count()), "Ghi thao tác: kết thúc thì ẩn thanh trạng thái đang ghi");
   await shot("13b-recorded-candidate");
