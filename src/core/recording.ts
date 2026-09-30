@@ -133,13 +133,22 @@ function waitForPath(path: string): string {
   return `await page.waitForURL(/${parts.join("\\/")}(?:[?#]|$)/);`;
 }
 
+const POPUP_PANEL_CLASS_RE = /dropdown|popper|popover|listbox|menu/i;
+const CHOICE_SELECTOR_RE = /^internal:role=(?:option|menuitem(?:radio|checkbox)?|treeitem)\b/;
+
+/** A popup panel a framework renders per open (`#el-id-9173-227 > .el-select-dropdown`); clicking the panel itself does nothing. */
+function isPopupPanel(selector: string): boolean {
+  if (selector.startsWith("internal:")) return false;
+  return [...selector.matchAll(/\.((?:\\.|[\w-])+)/g)].some((m) => POPUP_PANEL_CLASS_RE.test(m[1]));
+}
+
 function pressKey(e: Extract<RecordingEvent, { kind: "action" }>): string | undefined {
   return e.action.key ?? e.code.match(/\.press\((['"])(.+?)\1\)/)?.[2];
 }
 
 /**
  * Drops recorder noise: actions on the toolbar, the focusing click before typing, the synthetic submit click
- * after Enter, repeated navigations.
+ * after Enter, a click on a dropdown panel right before picking one of its options, repeated navigations.
  */
 export function cleanRecording(events: RecordingEvent[]): RecordingEvent[] {
   events = events.filter((e) => e.kind !== "action" || !(e.action.selector?.includes(TOOLBAR_TAG) || e.code.includes(TOOLBAR_TAG)));
@@ -160,6 +169,8 @@ export function cleanRecording(events: RecordingEvent[]): RecordingEvent[] {
       if (next?.kind === "action" && (next.action.name === "fill" || next.action.name === "press") && next.action.selector === a.selector) return;
       const prev = lastAction();
       if (prev && prev.action.name === "press" && /^(Numpad)?Enter$/.test(pressKey(prev) ?? "") && e.t - prev.t < 1000 && /role=button|type=submit/i.test(a.selector)) return;
+      const nextAction = events.slice(i + 1).find((x): x is Extract<RecordingEvent, { kind: "action" }> => x.kind === "action");
+      if (isPopupPanel(a.selector) && nextAction?.action.name === "click" && CHOICE_SELECTOR_RE.test(nextAction.action.selector ?? "")) return;
     }
     if (a.name === "navigate") {
       const prev = lastAction();

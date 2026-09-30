@@ -44,6 +44,27 @@ describe("stable locator code", () => {
   });
 });
 
+describe("dropdown panel clicks", () => {
+  const act = (t: number, selector: string, code: string): RecordingEvent => ({ kind: "action", t, page: 0, url: `${BASE}/new`, action: { name: "click", selector }, code });
+  const opener = act(1, "#el-id-9173-100", "await page.locator('#el-id-9173-100').click();");
+  const panel = act(2, "#el-id-9173-227 > .el-select-dropdown", "await page.locator('#el-id-9173-227 > .el-select-dropdown').click();");
+  const option = act(3, 'internal:role=option[name="Bob"i]', "await page.getByRole('option', { name: 'Bob' }).click();");
+  const stable = { "#el-id-9173-100": { reason: "id tự sinh", locator: "page.getByTestId('owner')" } };
+  const base = { baseUrl: BASE, schema, sample: { owner: "Alice" }, secrets: {}, steps: ["Chọn owner"], closeAtEnd: false, stable };
+
+  it("drops a click on the dropdown panel right before picking an option", () => {
+    const r = buildRecordedScript([opener, panel, option], base);
+    expect(r.source).not.toContain("el-select-dropdown");
+    expect(r.source).toContain("await page.getByTestId('owner').click();\n  await page.getByRole('option', { name: 'Bob' }).click();");
+    expect(r.notes).toEqual([]);
+  });
+
+  it("keeps a panel click that is not followed by an option", () => {
+    const r = buildRecordedScript([opener, panel], base);
+    expect(r.source).toContain(".el-select-dropdown");
+  });
+});
+
 describe("recording with fragile selectors", () => {
   const events: RecordingEvent[] = [
     { kind: "action", t: 1, page: 0, url: `${BASE}/new`, action: { name: "navigate", url: `${BASE}/new` }, code: `await page.goto('${BASE}/new');` },

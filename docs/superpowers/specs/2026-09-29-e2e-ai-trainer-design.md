@@ -73,7 +73,8 @@ App mở Chrome riêng bằng Playwright, dùng storage state runner auth của 
 (`context._enableRecorder`, API riêng — ghim `playwright@1.63.0`). Một thanh nổi (custom element `e2e-rec-bar`, shadow root đóng, gọi app qua `exposeBinding`)
 cho chuyển bước trước/sau, đánh dấu "Chụp màn hình" (tự sang bước kế nếu bước hiện tại là bước chụp) và "Kết thúc"; thanh công cụ riêng của recorder bị ẩn.
 Trang Training hiện thanh trạng thái đang ghi và khoá Training/sửa tay/xoá cho test case đó. Kết thúc (hoặc đóng Chrome) → `src/core/recording.ts`:
-bỏ nhiễu (click trên thanh nổi, click lấy focus trước khi gõ, click submit sau Enter, điều hướng lặp), giữ locator của recorder, thay giá trị khớp input mẫu bằng
+bỏ nhiễu (click trên thanh nổi, click lấy focus trước khi gõ, click submit sau Enter, click vào khung danh sách thả xuống — class có
+dropdown/popper/popover/listbox/menu — ngay trước khi chọn option/menuitem, điều hướng lặp), giữ locator của recorder, thay giá trị khớp input mẫu bằng
 `input.<field>` (kể cả trong locator, khớp một phần ⇒ template string), giá trị secret ⇒ field secret (không khớp ⇒ `""` + ghi chú), chèn `// Step N`, `page.screenshot()`,
 `page.waitForURL` trước ảnh khi đã chuyển trang, `page.close()` nếu đã tới bước "Đóng trình duyệt". Tab khác, giá trị không khớp input ⇒ ghi chú
 "Ghi thao tác — cần xem lại" ở đầu script. Kết quả là candidate `origin = recorded` (nhãn GHI THAO TÁC), `DRAFT`, đi tiếp Trial/Chấp nhận như candidate AI.
