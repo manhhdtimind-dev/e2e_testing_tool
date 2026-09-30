@@ -83,6 +83,8 @@ dropdown/popper/popover/listbox/menu — ngay trước khi chọn option/menuite
 `page.waitForURL` trước ảnh khi đã chuyển trang, `page.close()` nếu đã tới bước "Đóng trình duyệt". Tab khác, giá trị không khớp input ⇒ ghi chú
 "Ghi thao tác — cần xem lại" ở đầu script. Kết quả là candidate `origin = recorded` (nhãn GHI THAO TÁC), `DRAFT`, đi tiếp Trial/Chấp nhận như candidate AI.
 AI không tự chạy sau khi ghi; người dùng muốn sửa thì gửi prompt như bình thường (agent nhận candidate mới nhất làm ngữ cảnh).
+Giá trị input trong hộp thoại ghi chỉ dùng cho phiên ghi, không tự ghi đè test case. Nếu khác input mẫu (chỉ biến không secret; `RecordingState.sample_changes`),
+sau khi tạo candidate app hỏi "Cập nhật input mẫu / Giữ nguyên"; đồng ý thì `updateSampleInput` chỉ thay các biến đó (audit `testcase.sample_update`).
 
 **Selector ổn định khi ghi** (`src/core/selectorStability.ts`, `src/main/recording/stableLocator.ts`): recorder chỉ dùng id/class khi phần tử không có
 test id, role + tên, label, placeholder hay text — thường là ô chọn của UI framework (Element Plus: `#el-id-4190-146`, đổi mỗi lần tải trang).

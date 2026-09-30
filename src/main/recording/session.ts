@@ -134,6 +134,10 @@ export async function startRecording(
   const inputIssues = trainingSchemaIssues(tc, req.sample_input);
   if (inputIssues.length) throw new AppError(`Input mẫu không hợp lệ:\n${inputIssues.join("\n")}`);
   const sample = Object.fromEntries(Object.entries(req.sample_input).filter(([k]) => tc.input_schema.fields.some((f) => f.name === k && !f.secret)));
+  const sampleChanges = tc.input_schema.fields
+    .filter((f) => !f.secret)
+    .map((f) => ({ field: f.name, from: tc.sample_input[f.name] ?? "", to: sample[f.name] ?? "" }))
+    .filter((c) => c.from !== c.to);
 
   const s: Session = {
     state: {
@@ -150,6 +154,7 @@ export async function startRecording(
       notes: [],
       error: null,
       started_at: now(),
+      sample_changes: sampleChanges,
     },
     tc,
     env,

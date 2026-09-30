@@ -158,6 +158,14 @@ export interface RecordingState {
   notes: string[];
   error: string | null;
   started_at: string;
+  /** Non-secret input values used for this recording that differ from the test case sample input. */
+  sample_changes: SampleChange[];
+}
+
+export interface SampleChange {
+  field: string;
+  from: string;
+  to: string;
 }
 
 export type TrialStatus = "QUEUED" | "RUNNING" | "PASSED" | "FAILED" | "AUTH_REQUIRED";

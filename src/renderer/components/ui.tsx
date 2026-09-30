@@ -33,7 +33,7 @@ export const useToast = () => useContext(ToastCtx);
 // ---------- confirm ----------
 // In-app replacement for window.confirm: after a native dialog closes, Electron on Windows can leave the
 // page without input focus, so clicks and typing stop working until the window is re-focused.
-type ConfirmOptions = { okText?: string; danger?: boolean };
+type ConfirmOptions = { okText?: string; cancelText?: string; danger?: boolean };
 type ConfirmRequest = ConfirmOptions & { message: string; resolve: (ok: boolean) => void };
 const ConfirmCtx = createContext<(message: string, options?: ConfirmOptions) => Promise<boolean>>(async () => false);
 
@@ -69,7 +69,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           footer={
             <>
               <button className="btn" onClick={cancel}>
-                Huỷ
+                {req.cancelText ?? "Huỷ"}
               </button>
               <button className={`btn ${req.danger ? "bad" : "primary"}`} autoFocus onClick={() => answer(true)}>
                 {req.okText ?? "Đồng ý"}

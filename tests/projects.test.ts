@@ -6,7 +6,7 @@ import { Db } from "../src/main/db/database";
 import { Repo } from "../src/main/db/repo";
 import type { AppContext } from "../src/main/context";
 import { initPaths, paths } from "../src/main/paths";
-import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, saveTestCase } from "../src/main/services/testCases";
+import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, saveTestCase, updateSampleInput } from "../src/main/services/testCases";
 import type { ParsedTestCase } from "../src/shared/types";
 
 let dir: string;
@@ -68,6 +68,30 @@ describe("projects and groups", () => {
     expect(created.group_name).toBe("Nhóm A");
     const updated = saveTestCase(ctx, { ...base, title: "t2" });
     expect([updated.project_id, updated.group_name]).toEqual([created.project_id, "Nhóm A"]);
+  });
+
+  it("updates only the given sample values and rejects secret or unknown fields", () => {
+    const fields = [
+      { name: "campaign_name", type: "string" as const, required: true, secret: false },
+      { name: "budget", type: "number" as const, required: false, secret: false },
+      { name: "password", type: "string" as const, required: true, secret: true },
+    ];
+    saveTestCase(ctx, {
+      test_id: "S1",
+      title: "t",
+      steps: ["a"],
+      input_schema: { fields },
+      sample_input: { campaign_name: "Summer", budget: "100" },
+      expected_result: "ok",
+      project: { new_name: "P" },
+      group_name: "G",
+    });
+    const updated = updateSampleInput(ctx, "S1", { campaign_name: "Winter" });
+    expect(updated.sample_input).toEqual({ campaign_name: "Winter", budget: "100" });
+    expect(ctx.repo.testCases.get("S1")).toMatchObject({ sample_input: { campaign_name: "Winter", budget: "100" }, group_name: "G", steps: ["a"] });
+    expect(() => updateSampleInput(ctx, "S1", { password: "x" })).toThrow(/password/);
+    expect(() => updateSampleInput(ctx, "S1", { other: "x" })).toThrow(/other/);
+    expect(ctx.repo.listAudit().some((a) => a.action === "testcase.sample_update" && a.entity_id === "S1")).toBe(true);
   });
 
   it("deletes a trained and approved test case with all related records and artifact folders", () => {

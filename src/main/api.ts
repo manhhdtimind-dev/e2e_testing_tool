@@ -7,7 +7,7 @@ import { fromArtifactRef, paths } from "./paths";
 import { AppError } from "./util";
 import { updateSettings } from "./services/settings";
 import { secretKeys } from "./services/secrets";
-import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
+import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, updateSampleInput, type TestCaseInput } from "./services/testCases";
 import { writeSampleCsv, writeSampleXlsx } from "./services/sampleTemplate";
 import { addFixtures, deleteFixture, listFixtures } from "./services/fixtures";
 import {
@@ -141,6 +141,7 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     },
     confirmImport: (fileName: string, project: ProjectTarget, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, project, cases),
     saveTestCase: (input: TestCaseInput) => saveTestCase(ctx, input),
+    updateSampleInput: (testId: string, values: InputValues) => updateSampleInput(ctx, testId, values),
     testCaseDeleteImpact: (testId: string) => deleteImpact(ctx, testId),
     deleteTestCase: (testId: string) => {
       if (isRecording(testId)) throw new AppError(RECORDING_BUSY);

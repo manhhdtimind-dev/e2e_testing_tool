@@ -171,6 +171,17 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
     }
     void reload();
   });
+  const offerSampleUpdate = async (r: RecordingState) => {
+    const lines = r.sample_changes.map((c) => `• ${c.field}: ${c.from ? `"${c.from}"` : "(trống)"} → ${c.to ? `"${c.to}"` : "(trống)"}`);
+    const ok = await ask(`Input lúc ghi khác input mẫu của ${r.test_id}:\n${lines.join("\n")}\n\nThay input mẫu của test case bằng giá trị vừa dùng khi ghi?`, {
+      okText: "Cập nhật input mẫu",
+      cancelText: "Giữ nguyên",
+    });
+    if (!ok) return;
+    const values = Object.fromEntries(r.sample_changes.map((c) => [c.field, c.to]));
+    if (await run(() => api.updateSampleInput(r.test_id, values), "Đã cập nhật input mẫu của test case")) setCases(await api.listTestCases());
+  };
+
   useAppEvent<RecordingState>("recording:state", (r) => {
     setRec(r);
     if (r.test_id !== testId) return;
@@ -181,6 +192,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
         "ok",
       );
       void reload();
+      if (r.sample_changes.length) void offerSampleUpdate(r);
     } else if (r.status === "FAILED" && r.error) {
       toast(`Ghi thao tác không thành công: ${r.error}`, "err");
     }

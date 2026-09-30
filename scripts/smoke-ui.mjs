@@ -407,6 +407,21 @@ try {
     await recBrowser.close().catch(() => undefined);
   }
   await win.locator(".badge", { hasText: "GHI THAO TÁC" }).waitFor({ timeout: 30_000 });
+  await confirmBox.getByText("Input lúc ghi khác input mẫu của TC_CAMP_001").waitFor({ timeout: 10_000 });
+  const sampleAsk = await confirmBox.innerText();
+  check(
+    sampleAsk.includes('campaign_name: "Summer Sale" → "Rec Campaign 01"') && sampleAsk.includes('objective: "Sales" → "Traffic"'),
+    `Ghi thao tác xong: hỏi thay input mẫu bằng giá trị vừa dùng khi ghi:\n${sampleAsk}`,
+  );
+  await shot("13c-recording-sample-update");
+  await confirmBox.getByRole("button", { name: "Cập nhật input mẫu" }).click();
+  await confirmBox.waitFor({ state: "detached" });
+  await win.getByText("Đã cập nhật input mẫu của test case").waitFor();
+  const updatedCase = (await bridge("listTestCases")).find((c) => c.test_id === "TC_CAMP_001");
+  check(
+    updatedCase.sample_input.campaign_name === "Rec Campaign 01" && updatedCase.sample_input.objective === "Traffic",
+    `Bấm Cập nhật input mẫu: test case lưu giá trị vừa ghi (${JSON.stringify(updatedCase.sample_input)})`,
+  );
   const recSession = await bridge("getRecordingState");
   check(recSession.status === "SAVED" && recSession.action_count === 8 && recSession.shot_count === 2, `Ghi thao tác: đếm 8 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
   const recorded = (await bridge("getScriptState", "TC_CAMP_001")).candidates[0];

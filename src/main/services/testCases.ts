@@ -133,6 +133,26 @@ export function saveTestCase(ctx: AppContext, input: TestCaseInput, action = "te
   return record;
 }
 
+/** Replaces the sample values of the given non-secret fields and keeps the rest of the test case. */
+export function updateSampleInput(ctx: AppContext, testId: string, values: InputValues): TestCase {
+  const tc = ctx.repo.testCases.get(testId);
+  if (!tc) throw new AppError("Không tìm thấy test case");
+  const invalid = Object.keys(values).filter((k) => !tc.input_schema.fields.some((f) => f.name === k && !f.secret));
+  if (invalid.length) throw new AppError(`Không cập nhật được input mẫu của ${invalid.join(", ")}: biến không có trong test case hoặc là secret`);
+  return saveTestCase(
+    ctx,
+    {
+      test_id: tc.test_id,
+      title: tc.title,
+      steps: tc.steps,
+      input_schema: tc.input_schema,
+      sample_input: { ...tc.sample_input, ...values },
+      expected_result: tc.expected_result,
+    },
+    "testcase.sample_update",
+  );
+}
+
 export function confirmImport(ctx: AppContext, fileName: string, target: ProjectTarget, cases: ParsedTestCase[]): { project: Project; cases: TestCase[] } {
   const errors: string[] = [];
   for (const c of cases) {
