@@ -66,12 +66,17 @@ function ownerSelect() {
 
 /**
  * Element Plus 2.x–style select with the label inside the form item content and the same "Select" placeholder in every
- * field: the recorder names the placeholder by position (`getByText('Select').first()`), which points at another field
- * once the previous one has a value.
+ * field: the recorder names the clicked part by position (`getByText('Select').first()`), which points at another field
+ * once the previous one has a value. The clicked part (`.dselect__selection`) only has a height while hovered, so a
+ * script that clicks it instead of the widget finds it "not visible".
  */
+const PLACEHOLDER_SELECT_CSS = `<style>.dselect__wrapper{position:relative;display:flex;align-items:center;min-height:30px;border:1px solid #bbb;border-radius:4px;cursor:pointer}
+  .dselect__selection{flex:1}.dselect__wrapper:hover .dselect__selection{min-height:26px}
+  .dselect__placeholder{position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none}</style>`;
+
 function placeholderSelect(label, options) {
   return `<div class="form-item"><div class="form-item__content"><div class="flex w-full"><label class="text-sm">${esc(label)}</label></div>
-      <div class="dselect"><div class="dselect__wrapper"><div class="dselect__selection"><span class="dselect__placeholder">Select</span></div></div>
+      <div class="dselect"><div class="dselect__wrapper" tabindex="-1"><div class="dselect__selection"><span class="dselect__placeholder">Select</span></div></div>
       <ul class="dselect__menu" role="listbox" hidden>${options.map((o) => `<li role="option">${esc(o)}</li>`).join("")}</ul></div></div></div>
       <script>(() => {
         const root = document.currentScript.previousElementSibling.querySelector(".dselect");
@@ -135,6 +140,7 @@ const server = createServer(async (req, res) => {
       <label for="name">Campaign Name</label><input id="name" name="name" required>
       <label for="obj">Objective</label><select id="obj" name="objective"><option>Sales</option><option>Awareness</option><option>Traffic</option></select>
       ${ownerSelect()}
+      ${PLACEHOLDER_SELECT_CSS}
       ${placeholderSelect("Region", ["EU", "US"])}
       ${placeholderSelect("Channel", ["Search", "Video"])}
       ${placeholderSelect("Tier", ["Gold", "Silver"])}

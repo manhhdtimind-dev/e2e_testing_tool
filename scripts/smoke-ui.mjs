@@ -389,7 +389,9 @@ try {
     await rp.locator(".form-item", { hasText: "Owner" }).getByRole("combobox").click();
     await rp.getByRole("option", { name: "Bob" }).click();
     for (const choice of ["EU", "Search", "Gold"]) {
-      await rp.locator(".dselect__placeholder", { hasText: /^Select$/ }).first().click();
+      const widget = rp.locator(".dselect__wrapper", { has: rp.locator(".dselect__placeholder", { hasText: /^Select$/ }) }).first();
+      await widget.hover();
+      await widget.locator(".dselect__selection").click();
       await rp.getByRole("option", { name: choice }).click();
     }
     await bar("next");

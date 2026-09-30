@@ -27,6 +27,37 @@ describe("fragile selectors", () => {
     expect(cssFragility(".el-form-item")).toBeNull();
     expect(cssFragility('input[type="file"]')).toBeNull();
   });
+
+  it("flags state classes that only exist while the element is focused, hovered or open", () => {
+    expect(cssFragility(".el-input__wrapper.is-focus")).toContain('class trạng thái ".is-focus"');
+    expect(cssFragility(".tab.active")).toContain("class trạng thái");
+    expect(cssFragility(".el-select__wrapper")).toBeNull();
+  });
+});
+
+describe("app navigation after a click", () => {
+  const nav = (t: number, url: string): RecordingEvent => ({ kind: "action", t, page: 0, url, action: { name: "navigate", url }, code: `await page.goto('${url}');` });
+  const click = (t: number): RecordingEvent => ({
+    kind: "action",
+    t,
+    page: 0,
+    url: `${BASE}/demand-gen/new`,
+    action: { name: "click", selector: 'internal:role=button[name="Next"i]' },
+    code: "await page.getByRole('button', { name: 'Next' }).click();",
+  });
+  const base = { baseUrl: BASE, schema, sample: { owner: "Bob" }, secrets: {}, steps: [], closeAtEnd: false };
+
+  it("waits for the new URL instead of navigating, with generated ids generalized", () => {
+    const r = buildRecordedScript([nav(0, `${BASE}/demand-gen/new`), click(1000), nav(1500, `${BASE}/demand-gen/123456/review`)], base);
+    expect(r.source).toContain('await page.goto("/demand-gen/new");');
+    expect(r.source).toContain("await page.waitForURL(/\\/demand-gen\\/[^/]+\\/review(?:[?#]|$)/);");
+    expect(r.source).not.toContain("123456");
+  });
+
+  it("keeps a navigation typed long after the last click", () => {
+    const r = buildRecordedScript([nav(0, `${BASE}/demand-gen/new`), click(1000), nav(30_000, `${BASE}/reports`)], base);
+    expect(r.source).toContain('await page.goto("/reports");');
+  });
 });
 
 describe("stable locator code", () => {

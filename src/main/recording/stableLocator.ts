@@ -19,6 +19,8 @@ function targetKind(actionName: string): TargetKind | null {
  * `__e2eTake("click", hints)` hands out clicks in order: the first unused one whose text/attributes contain a hint from
  * the recorder selector (else the first unused one); earlier unused clicks (ones the recorder skipped) are dropped.
  * Mirrors the clicks the recorder records: trusted left clicks from the mouse, not on checkboxes/radios/ranges.
+ * On pointerdown (before the page moves focus) it also notes which elements on the path had a box, so the lookup
+ * never picks a part that only has a size while focused (`__e2eShown`).
  */
 export const TARGET_CAPTURE_SCRIPT = `(() => {
   if (window.top !== window || window.__e2eTargets) return;
@@ -26,14 +28,34 @@ export const TARGET_CAPTURE_SCRIPT = `(() => {
   const norm = (s) => (s || "").replace(/\\s+/g, " ").trim().toLowerCase();
   const describe = (e) => e ? [e.textContent && e.textContent.length < 2000 ? e.textContent : "", e.id, e.getAttribute("placeholder"), e.getAttribute("aria-label"),
     e.getAttribute("title"), e.getAttribute("alt"), e.getAttribute("name"), e.value].map(norm).join("\\n") : "";
+  const target = (e) => (e.composedPath ? e.composedPath()[0] : e.target);
+  let pressed = null;
+  addEventListener("pointerdown", (e) => {
+    const el = target(e);
+    if (!(el instanceof Element)) return;
+    const shown = new Set();
+    for (let n = el, i = 0; n && n !== document.documentElement && i < 30; n = n.parentElement, i++) {
+      const r = n.getBoundingClientRect(), cs = getComputedStyle(n);
+      if (r.width > 0 && r.height > 0 && cs.visibility !== "hidden") shown.add(n);
+    }
+    pressed = { el, shown };
+  }, true);
   const track = (type, kind) => addEventListener(type, (e) => {
-    const el = e.composedPath ? e.composedPath()[0] : e.target;
+    const el = target(e);
     if (!(el instanceof Element) || el.closest(${JSON.stringify(TOOLBAR_TAG)})) return;
     if (kind === "click" && (!e.isTrusted || e.detail === 0 || e.button !== 0 || (el instanceof HTMLInputElement && ["checkbox", "radio", "range"].includes(el.type)))) return;
     const around = el.closest("button, a, label, [role], [tabindex]");
-    list.push({ kind, el, t: Date.now(), used: false, text: describe(el) + "\\n" + (around && around !== el ? describe(around) : "") });
+    const shown = kind === "click" && pressed && (pressed.el === el || pressed.el.contains(el) || el.contains(pressed.el)) ? pressed.shown : null;
+    if (kind === "click") pressed = null;
+    list.push({ kind, el, t: Date.now(), used: false, shown, text: describe(el) + "\\n" + (around && around !== el ? describe(around) : "") });
     if (list.length > 100) list.shift();
   }, true);
+  window.__e2eShown = (el, clicked) => {
+    const entry = list.find((x) => x.kind === "click" && x.el === clicked);
+    if (!entry || !entry.shown) return el;
+    for (let n = el; n; n = n.parentElement) if (entry.shown.has(n)) return n;
+    return el;
+  };
   track("click", "click");
   track("input", "input");
   track("change", "change");
@@ -145,9 +167,16 @@ function collectCandidates(el: Element, cfg: CandidateConfig): Candidate[] {
   for (const c of stableClasses(el)) inner.push({ kind: "css", selector: `.${CSS.escape(c)}` });
   inner.push({ kind: "css", selector: tag });
 
-  const interactive = (e: Element) =>
-    e.hasAttribute("role") || e.hasAttribute("tabindex") || (e as HTMLElement).isContentEditable || ["input", "textarea", "select", "button", "a", "label"].includes(e.tagName.toLowerCase());
-  const iconLike = (e: Element) => ["svg", "i", "img"].includes(e.tagName.toLowerCase()) || /icon|clear|close|remove|delete/i.test(e.getAttribute("class") ?? "");
+  // Semantics of HTML/ARIA only: `tabindex="-1"` just allows focus from code and does not make an element a control.
+  const interactive = (e: Element) => {
+    const t = e.tagName.toLowerCase();
+    if (["button", "select", "textarea", "summary", "label"].includes(t) || (t === "a" && e.hasAttribute("href"))) return true;
+    if (t === "input" && (e as HTMLInputElement).type !== "hidden") return true;
+    if (/^(?:button|link|checkbox|radio|switch|tab|menuitem\w*|option|combobox|textbox|searchbox|spinbutton|slider|treeitem|gridcell)$/.test(e.getAttribute("role") ?? "")) return true;
+    const tabindex = e.getAttribute("tabindex");
+    return (tabindex !== null && Number(tabindex) >= 0) || (e as HTMLElement).isContentEditable;
+  };
+  const subControl = (e: Element) => /clear|close|remove|delete|trash|cancel/i.test(`${e.getAttribute("class") ?? ""} ${e.getAttribute("aria-label") ?? ""}`);
 
   let node = el.parentElement;
   for (let depth = 0; node && node !== document.body && depth < 8; depth++, node = node.parentElement) {
@@ -158,11 +187,12 @@ function collectCandidates(el: Element, cfg: CandidateConfig): Candidate[] {
       .map(textOf)
       .find((t) => t && t.length <= 60);
     if (!label) continue;
-    // Inner layout parts of a widget (e.g. `.el-select__selection`) can have no size until the widget has focus; click the widget root instead.
+    // A click on a non-control part of a field widget (layout box, placeholder, icon) replays on the widget root: inner parts
+    // may have no size until hovered/focused, the root is always laid out. Not for controls or clear/close buttons.
     const path: Element[] = [];
     for (let n: Element | null = el; n && n !== node; n = n.parentElement) path.unshift(n);
     const widget = path.find((n) => stableClasses(n).length);
-    if (cfg.forClick && widget && widget !== el && !path.some((n) => interactive(n) || iconLike(n))) {
+    if (cfg.forClick && widget && widget !== el && !path.some((n) => interactive(n) || subControl(n))) {
       for (const c of classes.slice(0, 2))
         for (const w of stableClasses(widget).slice(0, 2)) add({ kind: "within", container: `.${CSS.escape(c)}`, label, inner: { kind: "css", selector: `.${CSS.escape(w)}` } }, true);
     }
@@ -219,8 +249,21 @@ export async function findStableLocator(
   opts: { actionName?: string; target?: ElementHandle | null } = {},
 ): Promise<string | null> {
   if (selector.includes("enter-frame")) return null;
-  const handle = await actionTarget(page, selector, opts.target ?? null);
-  if (!handle) return null;
+  const chosen = await actionTarget(page, selector, opts.target ?? null);
+  if (!chosen) return null;
+  let handle = chosen;
+  if (opts.target) {
+    const shown = (
+      await page.evaluateHandle(
+        ([el, clicked]) => (window as unknown as { __e2eShown?: (e: Node, c: Node) => Node }).__e2eShown?.(el, clicked) ?? el,
+        [chosen, opts.target] as const,
+      )
+    ).asElement();
+    if (shown && !(await shown.evaluate((a, b) => a === b, chosen))) {
+      if (chosen !== opts.target) await chosen.dispose().catch(() => undefined);
+      handle = shown;
+    } else await shown?.dispose();
+  }
   try {
     const cfg: CandidateConfig = { utility: UTILITY_CLASS_RE.source, hash: HASH_CLASS_RE.source, state: STATE_CLASS_RE.source, forClick: opts.actionName === "click" };
     const candidates = await handle.evaluate(collectCandidates, cfg);

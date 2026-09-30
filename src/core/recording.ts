@@ -140,6 +140,8 @@ function waitForPath(path: string): string {
   return `await page.waitForURL(/${parts.join("\\/")}(?:[?#]|$)/);`;
 }
 
+const APP_NAVIGATION_MS = 10_000;
+
 const POPUP_PANEL_CLASS_RE = /dropdown|popper|popover|listbox|menu/i;
 const CHOICE_SELECTOR_RE = /^internal:role=(?:option|menuitem(?:radio|checkbox)?|treeitem)\b/;
 
@@ -371,6 +373,7 @@ export function buildRecordedScript(events: RecordingEvent[], opts: RecordingBui
   let lastUrl: string | null = null;
   let actionCount = 0;
   let navigated = false;
+  let prevAction: Extract<RecordingEvent, { kind: "action" }> | null = null;
 
   const stepComment = (n: number) => {
     const text = (opts.steps[n - 1] ?? "").replace(/\s+/g, " ").trim();
@@ -396,6 +399,17 @@ export function buildRecordedScript(events: RecordingEvent[], opts: RecordingBui
       lastUrl = e.url;
       continue;
     }
+    // A URL change shortly after a click/key press is the app navigating by itself (often to an id created by that
+    // action, e.g. /demand-gen/47/review): wait for that kind of URL instead of opening the recorded one.
+    const followsUser = !!prevAction && ["click", "press"].includes(prevAction.action.name) && e.t - prevAction.t < APP_NAVIGATION_MS;
+    const navPath = e.action.name === "navigate" && e.action.url && relativeUrl(e.action.url, opts.baseUrl) !== null ? pathOf(e.action.url) : null;
+    if (navigated && followsUser && navPath) {
+      if (navPath !== (lastUrl && pathOf(lastUrl))) emit(waitForPath(navPath));
+      lastUrl = e.action.url ?? lastUrl;
+      prevAction = e;
+      continue;
+    }
+    prevAction = e;
     const stmts = statementsFor(e, c);
     if (!stmts.length) continue;
     if (e.action.name === "navigate") navigated = true;

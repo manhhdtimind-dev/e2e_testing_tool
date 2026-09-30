@@ -89,16 +89,19 @@ sau khi tạo candidate app hỏi "Cập nhật input mẫu / Giữ nguyên"; đ
 **Selector ổn định khi ghi** (`src/core/selectorStability.ts`, `src/main/recording/stableLocator.ts`): recorder chỉ dùng id/class khi phần tử không có
 test id, role + tên, label, placeholder hay text — thường là ô chọn của UI framework (Element Plus: `#el-id-4190-146`, đổi mỗi lần tải trang).
 `fragileReason` nhận ra id tự sinh (`el-id-*`, `:r1:`, `mui-*`, `radix-*`, `headlessui-*`, id có ≥ 3 chữ số liền…), class mã băm (`css-*`, CSS modules),
-class bố cục (Tailwind/Bootstrap), chuỗi CSS ≥ 2 dấu `>` và `nth=`.
+class bố cục (Tailwind/Bootstrap), class trạng thái (`is-*`, `has-*`, `active`, `focus`, `open`, `selected`…), chuỗi CSS ≥ 2 dấu `>` và `nth=`.
 Phần tử của thao tác không lấy lại bằng selector của recorder (recorder báo click trễ tới ~0,5 s để chờ double click; lúc đó `getByText('Select') >> nth=0`
 có thể đã trỏ sang ô khác): init script `TARGET_CAPTURE_SCRIPT` ghi mỗi click/input/change thật cùng text/thuộc tính lúc xảy ra; mỗi click recorder báo
 lấy click chưa dùng đầu tiên khớp text/id trong selector (không khớp ⇒ click chưa dùng đầu tiên), fill/select lấy phần tử gần nhất. Nếu selector recorder
 vẫn trỏ đúng phần tử đó hoặc phần tử bao nó thì dùng phần tử của recorder. Sau đó liệt kê ứng viên
 (`data-testid`/`data-test`/`data-qa`/`data-cy`, `name`, `aria-label`, rồi "trong container có class ổn định gần nhất chứa label" + role/class/tag của
 phần tử, rồi class ổn định của chính nó) và giữ ứng viên đầu tiên khớp đúng 1 phần tử và đúng phần tử đó, ví dụ
-`page.locator('.el-form-item').filter({ has: page.getByText('Account', { exact: true }) }).getByRole('combobox')`. Click vào phần bên trong không tương
-tác được của một widget (vd. `.el-select__selection`, cao 0 khi ô chưa focus) ⇒ ưu tiên gốc widget ngay dưới container có label (`.el-select`), trừ icon/nút
-xoá. Kết quả tra gắn vào từng thao tác (không cache theo chuỗi selector), tối đa 5 giây, chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
+`page.locator('.el-form-item').filter({ has: page.getByText('Account', { exact: true }) }).getByRole('combobox')`. Phần tử được click nhưng lúc
+`pointerdown` không hiển thị (kích thước 0 hoặc `visibility: hidden`) ⇒ dùng tổ tiên gần nhất đang hiển thị lúc đó (`__e2eShown`). Click không trúng
+phần tử tương tác được theo ngữ nghĩa HTML/ARIA (`button`, `a[href]`, `input`, `select`, `textarea`, `label`, role tương tác, `tabindex ≥ 0`,
+`contenteditable`; `tabindex="-1"` không tính) ⇒ click vào gốc widget ngay dưới container có label (vd. `.el-select`, không phải `.el-select__selection`
+chỉ có kích thước khi hover/focus), trừ nút con xoá/đóng (`clear`/`close`/`remove`…). Điều hướng xảy ra trong 10 giây sau click/phím trong cùng
+origin là do app ⇒ `waitForURL` với đoạn id trong đường dẫn thay bằng `[^/]+`, không `goto`. Kết quả tra gắn vào từng thao tác (không cache theo chuỗi selector), tối đa 5 giây, chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
 `FRAGILE_SELECTOR` cho `locator('<css>')` dễ hỏng (cả script AI); prompt Training dặn tránh các mẫu này.
 
 **Tải file lên (biến kiểu `file`):** giá trị của biến là *tên* một file mẫu của dự án (`userData/fixtures/<project_id>/`, ngoài artifacts nên

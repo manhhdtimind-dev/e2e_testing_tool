@@ -32,6 +32,8 @@ export function cssFragility(css: string): string | null {
   if (hashed.length) reasons.push(`class dạng mã băm "${hashed.map((c) => `.${c}`).join("")}"`);
   const utility = classes.filter((c) => UTILITY_CLASS_RE.test(c));
   if (utility.length) reasons.push(`class bố cục "${utility.map((c) => `.${c}`).join("")}"`);
+  const state = classes.filter((c) => STATE_CLASS_RE.test(c));
+  if (state.length) reasons.push(`class trạng thái "${state.map((c) => `.${c}`).join("")}"`);
   if ((css.match(/>/g) ?? []).length >= 2) reasons.push("chuỗi CSS bám theo cấu trúc trang");
   return reasons.length ? reasons.join(", ") : null;
 }
