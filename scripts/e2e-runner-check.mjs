@@ -108,6 +108,14 @@ try {
   const ownPath = await runJob("own-path", { campaign_name: "Own Path", objective: "Sales" }, { source: CANDIDATE.replace("await page.screenshot();", 'await page.screenshot({ path: "../outside.png", fullPage: true });') });
   check(ownPath.ok && ownPath.screenshots.length === 1 && dirname(ownPath.screenshots[0]) === ownPath.runDir && !existsSync(join(work, "outside.png")), "a path given by the script is redirected into the run dir");
 
+  const tallSource = CANDIDATE.replace(
+    "  await page.screenshot();\n",
+    '  await page.evaluate(() => { document.body.style.minHeight = "3000px"; });\n  await page.screenshot({ clip: { x: 0, y: 0, width: 200, height: 100 } });\n',
+  );
+  const tall = await runJob("full-page", { campaign_name: "Full Page", objective: "Sales" }, { source: tallSource });
+  const pngHeight = tall.screenshots[0] && existsSync(tall.screenshots[0]) ? readFileSync(tall.screenshots[0]).readUInt32BE(20) : 0;
+  check(tall.ok && pngHeight >= 3000, `page screenshot covers the whole page top to bottom (height ${pngHeight}px, viewport 820px)`);
+
   let held;
   const rk = await runJob("keep-open", { campaign_name: "Keep Open", objective: "Sales" }, { keepOpen: true, onChild: (c) => (held = c) });
   const exited = new Promise((r) => held.once("exit", () => r(true)));

@@ -73,7 +73,12 @@ export function instrument<T extends object>(target: T, label: string, rec: Reco
           let shotPath: string | null = null;
           if (isScreenshot) {
             shotPath = rec.nextScreenshotPath!();
-            const opts = callArgs[0] && typeof callArgs[0] === "object" ? (callArgs[0] as Record<string, unknown>) : {};
+            const opts = callArgs[0] && typeof callArgs[0] === "object" ? { ...(callArgs[0] as Record<string, unknown>) } : {};
+            // Page screenshots always cover the whole page top to bottom; clip cannot be combined with fullPage.
+            if (typeof (obj as { goto?: unknown }).goto === "function") {
+              delete opts.clip;
+              opts.fullPage = true;
+            }
             callArgs = [{ ...opts, path: shotPath }];
           }
           const step: StepLog = {
