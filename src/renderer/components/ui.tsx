@@ -378,7 +378,7 @@ export function ArtifactImage({ refPath, alt }: { refPath?: string | null; alt: 
     <>
       <img className="shot" src={src} alt={alt} onClick={() => setZoom(true)} onError={() => setMissing(true)} />
       {zoom && (
-        <div className="overlay" onClick={() => setZoom(false)}>
+        <div className="overlay zoom" onClick={() => setZoom(false)}>
           <img className="full" src={src} alt={alt} />
         </div>
       )}
@@ -392,11 +392,13 @@ export function EvidenceShots({ evidence, what }: { evidence: Evidence; what: st
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
   const [missing, setMissing] = useState<ReadonlySet<string>>(new Set());
+  const [tall, setTall] = useState<ReadonlySet<string>>(new Set());
   const shotsKey = shots.join("\n");
   useEffect(() => {
     setIndex(0);
     setZoom(false);
     setMissing(new Set());
+    setTall(new Set());
   }, [shotsKey]);
 
   const count = shots.length;
@@ -458,8 +460,20 @@ export function EvidenceShots({ evidence, what }: { evidence: Evidence; what: st
         {missing.has(ref) ? (
           <div className="muted small">Screenshot không còn (có thể đã hết hạn lưu trữ).</div>
         ) : (
-          <img className="shot" key={ref} src={src} alt={alt} onClick={() => setZoom(true)} onError={() => markMissing(ref)} />
+          <img
+            className="shot"
+            key={ref}
+            src={src}
+            alt={alt}
+            onClick={() => setZoom(true)}
+            onError={() => markMissing(ref)}
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              if (img.naturalHeight > img.naturalWidth * 1.2) setTall((t) => new Set(t).add(ref));
+            }}
+          />
         )}
+        {tall.has(ref) && !missing.has(ref) && <span className="slide-tag">Ảnh cả trang — bấm để xem, cuộn để đọc</span>}
         {nav(false)}
         <span className="slide-count" aria-live="polite">
           {i + 1}/{count}
@@ -475,7 +489,7 @@ export function EvidenceShots({ evidence, what }: { evidence: Evidence; what: st
         </div>
       )}
       {zoom && (
-        <div className={`overlay${count > 1 ? " slide-zoom" : ""}`} onClick={() => setZoom(false)}>
+        <div className={`overlay zoom${count > 1 ? " slide-zoom" : ""}`} onClick={() => setZoom(false)}>
           <img className="full" src={src} alt={alt} />
           {nav(true)}
           {count > 1 && <span className="slide-count big">{i + 1}/{count}</span>}

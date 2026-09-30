@@ -257,6 +257,8 @@ try {
   await slides.locator("img.shot").click();
   const zoomed = win.locator(".overlay img.full");
   await zoomed.waitFor();
+  const zoomStyle = await zoomed.evaluate((img) => ({ overflow: getComputedStyle(img.parentElement).overflowY, maxHeight: getComputedStyle(img).maxHeight }));
+  check(zoomStyle.overflow === "auto" && zoomStyle.maxHeight === "none", `Ảnh phóng to vừa chiều rộng, ảnh cả trang cuộn dọc được (${JSON.stringify(zoomStyle)})`);
   await win.keyboard.press("ArrowLeft");
   check((await win.locator(".slide-count.big").innerText()) === "1/2", "Slide phóng to: phím ← về ảnh 1/2");
   await shot("04b-trial-slide-zoom");
