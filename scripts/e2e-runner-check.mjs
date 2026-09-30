@@ -116,6 +116,23 @@ try {
   const pngHeight = tall.screenshots[0] && existsSync(tall.screenshots[0]) ? readFileSync(tall.screenshots[0]).readUInt32BE(20) : 0;
   check(tall.ok && pngHeight >= 3000, `page screenshot covers the whole page top to bottom (height ${pngHeight}px, viewport 820px)`);
 
+  const shell = (mainStyle) =>
+    CANDIDATE.replace(
+      "  await page.screenshot();\n",
+      `  await page.evaluate(() => {
+    document.body.style.margin = "0";
+    document.body.innerHTML = '<div style="display:flex;height:100vh"><nav style="width:200px">Menu</nav><main style="flex:1;overflow:auto;${mainStyle}"><div style="height:2500px">Form</div><p>Bottom</p></main></div>';
+  });
+  await page.screenshot();
+  if (page.viewportSize()?.height !== 820) throw new Error("viewport not restored: " + page.viewportSize()?.height);
+`,
+    );
+  const pngHeightOf = (r) => (r.screenshots[0] && existsSync(r.screenshots[0]) ? readFileSync(r.screenshots[0]).readUInt32BE(20) : 0);
+  const appShell = await runJob("app-shell", { campaign_name: "App Shell", objective: "Sales" }, { source: shell("") });
+  check(appShell.ok && pngHeightOf(appShell) >= 2500, `app shell with an inner scroll area: screenshot shows the hidden part, viewport restored (height ${pngHeightOf(appShell)}px; ${appShell.error_message ?? ""})`);
+  const fixedBox = await runJob("fixed-scroller", { campaign_name: "Fixed Box", objective: "Sales" }, { source: shell("flex:none;width:1100px;height:600px") });
+  check(fixedBox.ok && pngHeightOf(fixedBox) === 820, `fixed-height scroller is not stretched (height ${pngHeightOf(fixedBox)}px; ${fixedBox.error_message ?? ""})`);
+
   let held;
   const rk = await runJob("keep-open", { campaign_name: "Keep Open", objective: "Sales" }, { keepOpen: true, onChild: (c) => (held = c) });
   const exited = new Promise((r) => held.once("exit", () => r(true)));

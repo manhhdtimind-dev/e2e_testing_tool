@@ -1,4 +1,6 @@
+import type { Page } from "playwright";
 import type { StepLog } from "../shared/types";
+import { withFullHeight } from "./fullPage";
 
 const ACTIONS = new Set([
   "goto", "reload", "goBack", "goForward", "waitForURL", "waitForLoadState", "waitForSelector", "waitForResponse",
@@ -71,11 +73,12 @@ export function instrument<T extends object>(target: T, label: string, rec: Reco
         return async (...args: unknown[]) => {
           let callArgs = args.map(unwrap);
           let shotPath: string | null = null;
+          const pageShot = isScreenshot && typeof (obj as { goto?: unknown }).goto === "function";
           if (isScreenshot) {
             shotPath = rec.nextScreenshotPath!();
             const opts = callArgs[0] && typeof callArgs[0] === "object" ? { ...(callArgs[0] as Record<string, unknown>) } : {};
             // Page screenshots always cover the whole page top to bottom; clip cannot be combined with fullPage.
-            if (typeof (obj as { goto?: unknown }).goto === "function") {
+            if (pageShot) {
               delete opts.clip;
               opts.fullPage = true;
             }
@@ -93,7 +96,8 @@ export function instrument<T extends object>(target: T, label: string, rec: Reco
           rec.steps.push(step);
           const t0 = Date.now();
           try {
-            const out = await value.apply(obj, callArgs);
+            const run = () => value.apply(obj, callArgs);
+            const out = pageShot ? await withFullHeight(obj as unknown as Page, run) : await run();
             if (shotPath) rec.onScreenshot?.(shotPath);
             return out;
           } catch (e) {

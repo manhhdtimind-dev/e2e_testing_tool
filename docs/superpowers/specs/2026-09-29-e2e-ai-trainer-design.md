@@ -38,8 +38,10 @@ dự án mới chỉ được tạo khi xác nhận lưu). **Nhóm** = tên shee
 cùng dự án thì ghi đè. Danh sách Test Cases lọc theo dự án, nhóm và text. Test case có trước khi thêm dự án được đưa vào "Dự án mặc định".
 Steps có thể có bước "Chụp màn hình…" và "Đóng trình duyệt" (nhận diện cả khi không dấu, `src/core/stepDirectives.ts`): prompt Training
 liệt kê chính xác bước nào gọi `page.screenshot()` / `page.close()`; không có bước chụp ⇒ một ảnh sau bước cuối; không có bước đóng ⇒ script không đóng.
-Runner luôn chụp `page.screenshot()` cả trang từ trên xuống (ép `fullPage: true`, bỏ `clip`; ảnh của locator giữ nguyên). Trang cuộn
-trong một khung con (`overflow: auto`) thì chỉ phần đang hiện của khung đó được chụp — giới hạn của Playwright.
+Runner luôn chụp `page.screenshot()` cả trang từ trên xuống (ép `fullPage: true`, bỏ `clip`; ảnh của locator giữ nguyên). Trang kiểu app shell
+(menu cố định, layout `100vh`, nội dung cuộn trong khung `overflow: auto`) thì document không cuộn nên `fullPage` không thấy phần dưới: `src/runner/fullPage.ts`
+tìm khung cuộn chính (≥ 40% rộng, ≥ 50% cao của viewport ban đầu), tạm kéo cao viewport thêm đúng phần bị ẩn (tối đa 16000px, lặp ≤ 3 lần), chụp rồi trả
+viewport cũ; nếu kéo cao mà phần ẩn không giảm (khung cao cố định) thì hoàn lại, không chụp khoảng trắng. Dropdown, menu, bảng nhỏ có cuộn riêng không được mở rộng.
 Validator cảnh báo (hiện trong khung Candidate) khi script lệch với các bước này. Prompt của người dùng được ưu tiên hơn.
 Tốc độ thao tác: Playwright `slowMo` theo Cài đặt (mặc định 500 ms, chỉ khi chạy có giao diện); script không tự thêm waitForTimeout.
 Xoá test case là xoá hẳn: cùng script, lượt Training, candidate, Trial, version (kể cả APPROVED), test run và thư mục artifacts/workspace;
