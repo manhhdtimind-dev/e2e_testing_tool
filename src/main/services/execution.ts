@@ -1,4 +1,4 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { userInfo } from "node:os";
 import { join } from "node:path";
 import type {
@@ -73,6 +73,7 @@ async function execute(
   const settings = ctx.settings();
   setRunnerConcurrency(settings.max_concurrent_runs);
   const headless = opts.fast || settings.runner_headless;
+  mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "source.ts"), source);
   const compiledPath = join(dir, "script.cjs");
   writeFileSync(compiledPath, transpileScript(source));
