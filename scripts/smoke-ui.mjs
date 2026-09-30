@@ -414,9 +414,9 @@ try {
       recorded.source.includes(".selectOption(input.objective)") &&
       !recorded.source.includes("Rec Campaign") &&
       !recorded.source.includes("Traffic") &&
-      (recorded.source.match(/await page\.screenshot\(\);/g) ?? []).length === 2 &&
+      (recorded.source.match(/await page\.screenshot\(\{ fullPage: true \}\);/g) ?? []).length === 2 &&
       recorded.source.includes("// Step 5: Chụp màn hình form") &&
-      recorded.source.includes("await page.waitForURL(/\\/campaigns(?:[?#]|$)/);\n  await page.screenshot();\n}") &&
+      recorded.source.includes("await page.waitForURL(/\\/campaigns(?:[?#]|$)/);\n  await page.screenshot({ fullPage: true });\n}") &&
       !recorded.source.includes("e2e-rec-bar"),
     `Ghi thao tác: script dùng input.*, có 2 lệnh chụp và chú thích theo bước:\n${recorded.source}`,
   );

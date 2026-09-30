@@ -70,9 +70,9 @@ describe("recorded script", () => {
     expect(r.source).toContain("await page.getByLabel('Objective').selectOption(input.objective);");
     expect(r.source).not.toContain("Summer Sale");
     expect(r.source).not.toContain(".click();\n  await page.getByRole('textbox', { name: 'Campaign Name' }).fill");
-    expect(r.source.match(/await page\.screenshot\(\);/g)).toHaveLength(2);
-    expect(r.source).toContain("await page.waitForURL(/\\/campaigns(?:[?#]|$)/);\n  await page.screenshot();\n}");
-    expect(r.source).toContain("// Step 5: Chụp màn hình form\n  await page.screenshot();");
+    expect(r.source.match(/await page\.screenshot\(\{ fullPage: true \}\);/g)).toHaveLength(2);
+    expect(r.source).toContain("await page.waitForURL(/\\/campaigns(?:[?#]|$)/);\n  await page.screenshot({ fullPage: true });\n}");
+    expect(r.source).toContain("// Step 5: Chụp màn hình form\n  await page.screenshot({ fullPage: true });");
     const v = validateScript(r.source, { schema, sampleInput: { campaign_name: "Summer Sale", objective: "Sales" }, steps });
     expect(v.issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(v.issues.map((i) => i.code)).not.toContain("SCREENSHOT_STEPS");

@@ -77,7 +77,7 @@ cho chuyển bước trước/sau, đánh dấu "Chụp màn hình" (tự sang b
 Trang Training hiện thanh trạng thái đang ghi và khoá Training/sửa tay/xoá cho test case đó. Kết thúc (hoặc đóng Chrome) → `src/core/recording.ts`:
 bỏ nhiễu (click trên thanh nổi, click lấy focus trước khi gõ, click submit sau Enter, click vào khung danh sách thả xuống — class có
 dropdown/popper/popover/listbox/menu — ngay trước khi chọn option/menuitem, điều hướng lặp), giữ locator của recorder, thay giá trị khớp input mẫu bằng
-`input.<field>` (kể cả trong locator, khớp một phần ⇒ template string), giá trị secret ⇒ field secret (không khớp ⇒ `""` + ghi chú), chèn `// Step N`, `page.screenshot()`,
+`input.<field>` (kể cả trong locator, khớp một phần ⇒ template string), giá trị secret ⇒ field secret (không khớp ⇒ `""` + ghi chú), chèn `// Step N`, `page.screenshot({ fullPage: true })` cho mỗi lần bấm 📷,
 `page.waitForURL` trước ảnh khi đã chuyển trang, `page.close()` nếu đã tới bước "Đóng trình duyệt". Tab khác, giá trị không khớp input ⇒ ghi chú
 "Ghi thao tác — cần xem lại" ở đầu script. Kết quả là candidate `origin = recorded` (nhãn GHI THAO TÁC), `DRAFT`, đi tiếp Trial/Chấp nhận như candidate AI.
 AI không tự chạy sau khi ghi; người dùng muốn sửa thì gửi prompt như bình thường (agent nhận candidate mới nhất làm ngữ cảnh).

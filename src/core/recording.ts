@@ -385,7 +385,7 @@ export function buildRecordedScript(events: RecordingEvent[], opts: RecordingBui
     if (e.kind === "shot") {
       const shotPath = pathOf(e.url);
       if (shotPath && lastUrl && pathOf(lastUrl) !== shotPath && relativeUrl(e.url, opts.baseUrl) !== null) emit(waitForPath(shotPath));
-      emit("await page.screenshot();");
+      emit("await page.screenshot({ fullPage: true });");
       lastUrl = e.url;
       continue;
     }
