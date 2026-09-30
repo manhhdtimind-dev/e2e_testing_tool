@@ -60,6 +60,7 @@ Finish with ONE line of JSON: {"status":"done","reason":"<page title you saw>","
       cwd: workspace,
       mcp: playwrightMcpServer({ profile, env, extensionToken: token, outputDir: join(workspace, "mcp-output") }),
       model: agent === "codex" ? settings.codex_model : settings.cursor_model,
+      reasoningEffort: settings.codex_reasoning_effort,
       apiKey,
       title: "E2E integration check",
       signal: controller.signal,

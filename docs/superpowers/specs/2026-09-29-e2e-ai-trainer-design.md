@@ -53,6 +53,9 @@ gửi prompt qua adapter (MCP Playwright được cấp, `--allowed-origins`, `-
 tool event vào action log → đọc `candidate.ts` → validate AST (hàm `run(page, input)`, chỉ `input.<field>` thuộc schema,
 không hardcode input mẫu/secret, không toạ độ chuột, không import/API ngoài danh sách cho phép) → nếu lỗi gửi lại tối đa 2
 lượt sửa trong cùng thread → tạo candidate revision bất biến (`source_hash` sha256). Giới hạn thời gian và số browser action.
+Codex nhận mức suy nghĩ từ Cài đặt `codex_reasoning_effort` (`low | medium | high | xhigh`, mặc định `medium`; để trống = theo
+`~/.codex/config.toml` của người dùng). Đo trên các lượt thật, 85–99% thời gian Training là thời gian model suy nghĩ, nên đây là đòn bẩy
+chính về tốc độ và chi phí; cấu hình cá nhân mức cao (ví dụ `ultra`) làm Training rất chậm.
 
 **Tham chiếu theo dự án (Cài đặt `training_project_refs`, mặc định bật):** mỗi lượt Training ghi lại `workspaces/<script_id>/reference/`
 từ version APPROVED mới nhất của các test case khác cùng dự án (tối đa 6 script / 60 KB, xếp theo độ giống của tiêu đề + steps, cùng nhóm được cộng điểm;

@@ -1,11 +1,14 @@
-import type { Settings } from "../../shared/types";
+import type { CodexReasoningEffort, Settings } from "../../shared/types";
 import type { Repo } from "../db/repo";
 import { secretKeys, type SecretStore } from "./secrets";
 
 type StoredSettings = Omit<Settings, "has_openai_key" | "has_cursor_key">;
 
+const CODEX_EFFORTS: CodexReasoningEffort[] = ["", "low", "medium", "high", "xhigh"];
+
 export const DEFAULT_SETTINGS: StoredSettings = {
   codex_model: "",
+  codex_reasoning_effort: "medium",
   cursor_model: "composer-2.5",
   training_timeout_min: 15,
   training_max_actions: 80,
@@ -37,6 +40,7 @@ export function updateSettings(repo: Repo, secrets: SecretStore, patch: Partial<
   for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof StoredSettings)[]) {
     (next as Record<string, unknown>)[key] = key in patch ? patch[key] : current[key];
   }
+  if (!CODEX_EFFORTS.includes(next.codex_reasoning_effort)) next.codex_reasoning_effort = DEFAULT_SETTINGS.codex_reasoning_effort;
   next.training_timeout_min = clamp(next.training_timeout_min, 1, 120);
   next.training_max_actions = clamp(next.training_max_actions, 5, 500);
   next.training_max_repairs = clamp(next.training_max_repairs, 0, 5);

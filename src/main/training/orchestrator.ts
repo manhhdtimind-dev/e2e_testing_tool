@@ -452,6 +452,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
         cwd: workspace,
         mcp,
         model,
+        reasoningEffort: settings.codex_reasoning_effort,
         apiKey,
         title: `E2E ${tc.test_id}`,
         signal: controller.signal,

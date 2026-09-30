@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AgentProvider, BrowserProfile, Settings } from "../../shared/types";
+import type { AgentProvider, BrowserProfile, CodexReasoningEffort, Settings } from "../../shared/types";
 import { api, type ApiResult } from "../api";
 import { Badge, Field, Panel, fmtTime, useAction } from "../components/ui";
 
@@ -74,6 +74,19 @@ export function SettingsPage() {
             </Field>
             <Field label="Model Codex" hint="Để trống = mặc định của Codex CLI">
               <input type="text" value={settings.codex_model} onChange={(e) => setSettings({ ...settings, codex_model: e.target.value })} />
+            </Field>
+            <Field label="Mức suy nghĩ Codex" hint="Mức càng cao càng chậm và tốn token. Khám phá trang và viết script thường chỉ cần medium.">
+              <select
+                aria-label="Mức suy nghĩ Codex"
+                value={settings.codex_reasoning_effort}
+                onChange={(e) => setSettings({ ...settings, codex_reasoning_effort: e.target.value as CodexReasoningEffort })}
+              >
+                <option value="low">low — nhanh, rẻ nhất</option>
+                <option value="medium">medium (khuyến nghị)</option>
+                <option value="high">high</option>
+                <option value="xhigh">xhigh — chậm, tốn nhất</option>
+                <option value="">Theo cấu hình Codex cá nhân</option>
+              </select>
             </Field>
             <Field label="Model Cursor">
               <input type="text" value={settings.cursor_model} onChange={(e) => setSettings({ ...settings, cursor_model: e.target.value })} />

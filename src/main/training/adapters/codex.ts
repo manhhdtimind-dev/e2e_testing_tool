@@ -40,6 +40,7 @@ export const codexAdapter: AgentAdapter = {
       networkAccessEnabled: false,
       webSearchMode: "disabled" as const,
       ...(req.model ? { model: req.model } : {}),
+      ...(req.reasoningEffort ? { modelReasoningEffort: req.reasoningEffort } : {}),
     };
     let thread;
     try {

@@ -1,4 +1,4 @@
-import type { AgentProvider, TrainingEvent } from "../../../shared/types";
+import type { AgentProvider, CodexReasoningEffort, TrainingEvent } from "../../../shared/types";
 import type { StdioServer } from "../mcpConfig";
 
 export interface AgentTurnRequest {
@@ -7,6 +7,8 @@ export interface AgentTurnRequest {
   cwd: string;
   mcp: StdioServer;
   model: string;
+  /** Codex only; empty keeps the user's Codex config. */
+  reasoningEffort?: CodexReasoningEffort;
   apiKey: string | null;
   title: string;
   signal: AbortSignal;

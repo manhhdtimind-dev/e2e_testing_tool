@@ -287,8 +287,12 @@ export interface TrainingEvent {
   ok?: boolean;
 }
 
+/** "" keeps the effort from the user's Codex config. */
+export type CodexReasoningEffort = "" | "low" | "medium" | "high" | "xhigh";
+
 export interface Settings {
   codex_model: string;
+  codex_reasoning_effort: CodexReasoningEffort;
   cursor_model: string;
   training_timeout_min: number;
   training_max_actions: number;
