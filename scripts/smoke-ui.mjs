@@ -22,6 +22,13 @@ const shots = join(out, "shots");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(shots, { recursive: true });
 
+const OTHER_CANDIDATE = `import type { Page } from "@playwright/test";
+
+export async function run(page: Page, input: Record<string, string>): Promise<void> {
+  await page.goto("/campaigns?seed=TC_CAMP_002");
+}
+`;
+
 const CANDIDATE = `import { expect, type Page } from "@playwright/test";
 
 export async function run(page: Page, input: { campaign_name: string; objective: string }) {
@@ -201,6 +208,15 @@ try {
     CANDIDATE,
     createHash("sha256").update(CANDIDATE, "utf8").digest("hex"),
     attemptId,
+    ts,
+  );
+  const otherScriptId = `scr_${randomUUID().slice(0, 8)}`;
+  db.prepare("INSERT INTO scripts (script_id, test_id, active_agent, training_thread_id, created_at) VALUES (?, ?, 'codex', NULL, ?)").run(otherScriptId, "TC_CAMP_002", ts);
+  db.prepare("INSERT INTO candidates (candidate_id, script_id, revision_no, source, source_hash, attempt_id, status, origin, created_at) VALUES (?, ?, 1, ?, ?, NULL, 'DRAFT', 'manual', ?)").run(
+    `cand_${otherScriptId}`,
+    otherScriptId,
+    OTHER_CANDIDATE,
+    createHash("sha256").update(OTHER_CANDIDATE, "utf8").digest("hex"),
     ts,
   );
   db.close();
@@ -401,6 +417,19 @@ try {
   check((await recTrial.locator(".slide-count").innerText()) === "1/2", "Trial candidate ghi thao tác PASSED với input khác, có 2 ảnh");
   await win.keyboard.press("Escape");
   await recTrial.waitFor({ state: "detached" });
+
+  const caseSelect = win.locator("label.field").filter({ has: win.getByText("Test case", { exact: true }) }).locator("select");
+  const recordedBadge = win.locator(".badge", { hasText: "GHI THAO TÁC" });
+  const code = (text) => win.getByRole("region", { name: "Mã nguồn" }).filter({ hasText: text });
+  await caseSelect.selectOption("TC_CAMP_002");
+  await code("seed=TC_CAMP_002").waitFor({ timeout: 10_000 }).catch(() => undefined);
+  check((await code("seed=TC_CAMP_002").count()) === 1, "Đổi test case: khung Candidate nạp script đã lưu của test case đó");
+  await caseSelect.selectOption("TC_CAMP_001");
+  await recordedBadge.waitFor({ timeout: 10_000 }).catch(() => undefined);
+  check(
+    (await recordedBadge.count()) === 1 && (await code("fill(input.campaign_name)").count()) === 1,
+    "Chọn lại test case: khung Candidate nạp lại candidate mới nhất từ DB",
+  );
 
   // ---------- history + settings ----------
   await nav("History");

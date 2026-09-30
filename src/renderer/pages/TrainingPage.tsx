@@ -131,12 +131,16 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
     setContextLabel(intent.context_label ?? "");
   }, [intent]);
 
+  const testIdRef = useRef(testId);
+  testIdRef.current = testId;
   const reload = useCallback(async () => {
     if (!testId) return setState(null);
-    setState(await api.getScriptState(testId));
+    const next = await api.getScriptState(testId);
+    if (testIdRef.current === testId) setState(next);
   }, [testId]);
 
   useEffect(() => {
+    setState(null);
     setAttemptId(null);
     setCandidateId(null);
     setTrialId(null);
