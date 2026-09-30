@@ -8,6 +8,7 @@ import type { AppContext } from "../src/main/context";
 import { initPaths } from "../src/main/paths";
 import { addFixtures, copyFixturesTo, deleteFixture, listFixtures, MAX_FIXTURE_BYTES, resolveFileFields, toFixtureName } from "../src/main/services/fixtures";
 import { confirmImport } from "../src/main/services/testCases";
+import { parseRows } from "../src/core/parser";
 import { fieldTsType, isSafeFixtureName, validateInput } from "../src/core/inputValidation";
 import { validateScript } from "../src/core/scriptValidator";
 import { buildRecordedScript, type RecordingEvent } from "../src/core/recording";
@@ -41,6 +42,30 @@ describe("file input type", () => {
     const long = toFixtureName(`${"x".repeat(300)}.png`);
     expect(long.length).toBe(200);
     expect(long.endsWith(".png")).toBe(true);
+  });
+});
+
+describe("import infers file fields", () => {
+  const typesOf = (steps: string, input: string) => {
+    const p = parseRows("x.csv", ["test_id", "title", "steps", "input", "expected_result"], [{ test_id: "T1", title: "t", steps, input, expected_result: "ok" }]);
+    return Object.fromEntries(p.cases[0].input_schema.fields.map((f) => [f.name, f.type]));
+  };
+
+  it("marks variables of upload steps and bare file names as file", () => {
+    expect(
+      typesOf(
+        '1. Mở trang Upload videos (/youtube-uploads/upload)\n2. Tải file "Drop or Select files to upload" = {{video_file}}\n3. Nhập "Product URL" = {{product_url}}',
+        'video_file: mug-noel-de-famille.mp4\nproduct_url: "https://cadeauplus.com/products/mug-noel-de-famille"',
+      ),
+    ).toEqual({ video_file: "file", product_url: "string" });
+    expect(typesOf('Upload "CV" = {{cv}}\nNhập "Tên" = {{name}}', "cv: ho-so\nname: An")).toEqual({ cv: "file", name: "string" });
+    expect(typesOf('Nhập "Ảnh" = {{img}}', "img: banner.png")).toEqual({ img: "file" });
+  });
+
+  it("keeps strings for downloads, paths and URLs", () => {
+    expect(typesOf('Tải file xuống "Báo cáo" = {{report}}', "report: bao-cao")).toEqual({ report: "string" });
+    expect(typesOf('Tải file "Ảnh" = {{img}}', "img: C:\\Users\\me\\a.png")).toEqual({ img: "string" });
+    expect(typesOf('Nhập "Link" = {{url}}', 'url: "https://cdn.x/a.png"')).toEqual({ url: "string" });
   });
 });
 

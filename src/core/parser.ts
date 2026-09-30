@@ -7,6 +7,8 @@ import type {
   InputValues,
   ParsedTestCase,
 } from "../shared/types";
+import { isSafeFixtureName } from "./inputValidation";
+import { fold } from "./stepDirectives";
 
 export const REQUIRED_COLUMNS = ["test_id", "title", "steps", "input", "expected_result"] as const;
 
@@ -67,12 +69,32 @@ export function inferType(value: string): InputField["type"] {
   return "string";
 }
 
-export function buildSchema(input: InputValues, previous?: InputSchema): InputSchema {
+const UPLOAD_STEP_RE = /\b(tai\s+(file|tep|anh)|tai\s+len|upload|chon\s+(file|tep)|dinh\s+kem|attach)\b/;
+const DOWNLOAD_STEP_RE = /\b(xuong|download)\b/;
+const FILE_VALUE_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|pdf|docx?|xlsx?|pptx?|csv|txt|json|xml|zip|rar|7z|mp4|mov|avi|mkv|webm|mp3|wav)$/i;
+
+/** Variables filled in by an upload step ("Tải file …", "Upload …", "Đính kèm …") or whose value is a bare file name. */
+export function inferFileFields(steps: string[], input: InputValues): Set<string> {
+  const out = new Set<string>();
+  for (const step of steps) {
+    const folded = fold(step);
+    if (!UPLOAD_STEP_RE.test(folded) || DOWNLOAD_STEP_RE.test(folded)) continue;
+    for (const m of step.matchAll(VARIABLE_RE)) {
+      const v = input[m[1]] ?? "";
+      if (v === "" || isSafeFixtureName(v)) out.add(m[1]);
+    }
+  }
+  for (const [name, v] of Object.entries(input)) if (isSafeFixtureName(v) && FILE_VALUE_RE.test(v)) out.add(name);
+  return out;
+}
+
+export function buildSchema(input: InputValues, previous?: InputSchema, steps: string[] = []): InputSchema {
   const prev = new Map((previous?.fields ?? []).map((f) => [f.name, f]));
+  const files = inferFileFields(steps, input);
   return {
     fields: Object.keys(input).map((name) => {
       const old = prev.get(name);
-      return old ?? { name, type: "string", required: true, secret: false };
+      return old ?? { name, type: files.has(name) ? "file" : "string", required: true, secret: false };
     }),
   };
 }
@@ -183,7 +205,7 @@ export function parseRows(fileName: string, headers: string[], rows: Record<stri
       title: row.title ?? "",
       steps,
       input: values,
-      input_schema: buildSchema(values),
+      input_schema: buildSchema(values, undefined, steps),
       expected_result: row.expected_result ?? "",
       raw: rawRow,
     });

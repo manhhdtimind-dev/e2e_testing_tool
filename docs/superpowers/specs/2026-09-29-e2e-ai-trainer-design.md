@@ -77,7 +77,8 @@ AI không tự chạy sau khi ghi; người dùng muốn sửa thì gửi prompt
 **Tải file lên (biến kiểu `file`):** giá trị của biến là *tên* một file mẫu của dự án (`userData/fixtures/<project_id>/`, ngoài artifacts nên
 không bị dọn; xoá dự án thì xoá luôn). Trang Test Cases có khung "File mẫu của dự án" (thêm qua hộp chọn file của main process, tối đa 50 MB/file,
 tên được làm sạch thành tên file Windows hợp lệ; xoá có xác nhận). Form input (Training/Trial/Testing/Ghi thao tác, giá trị mẫu trong schema) chọn
-từ danh sách này. Chạy (Trial/Testing/kiểm chứng nháp): `resolveInput` đổi tên → đường dẫn tuyệt đối trong `input.<field>` (kiểu TS `string`);
+từ danh sách này. Import tự đặt kiểu `file` cho biến nằm trong bước tải lên ("Tải file", "Upload", "Chọn file", "Đính kèm"; không tính "tải xuống")
+hoặc có giá trị là tên file trần với đuôi phổ biến (`inferFileFields`); đường dẫn và URL giữ `string`. Chạy (Trial/Testing/kiểm chứng nháp): `resolveInput` đổi tên → đường dẫn tuyệt đối trong `input.<field>` (kiểu TS `string`);
 thiếu file ⇒ lỗi input trước khi chạy; snapshot chỉ lưu tên. Training: kiểm tra file tồn tại khi bắt đầu, chép file mẫu vào `mcp-output/fixtures/`
 của attempt (thư mục `--output-dir` mà Playwright MCP luôn cho đọc, không cần `--allow-unrestricted-file-access`), prompt liệt kê đường dẫn cho
 `browser_file_upload` và yêu cầu script dùng `setInputFiles(input.<field>)`. Validator chặn `setInputFiles`/`setFiles` với chuỗi cố định
