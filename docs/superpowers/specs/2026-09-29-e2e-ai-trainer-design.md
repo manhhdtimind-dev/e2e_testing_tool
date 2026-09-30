@@ -70,9 +70,20 @@ cho chuyển bước trước/sau, đánh dấu "Chụp màn hình" (tự sang b
 Trang Training hiện thanh trạng thái đang ghi và khoá Training/sửa tay/xoá cho test case đó. Kết thúc (hoặc đóng Chrome) → `src/core/recording.ts`:
 bỏ nhiễu (click trên thanh nổi, click lấy focus trước khi gõ, click submit sau Enter, điều hướng lặp), giữ locator của recorder, thay giá trị khớp input mẫu bằng
 `input.<field>` (kể cả trong locator, khớp một phần ⇒ template string), giá trị secret ⇒ field secret (không khớp ⇒ `""` + ghi chú), chèn `// Step N`, `page.screenshot()`,
-`page.waitForURL` trước ảnh khi đã chuyển trang, `page.close()` nếu đã tới bước "Đóng trình duyệt". Tab khác, tải file, giá trị không khớp input ⇒ ghi chú
+`page.waitForURL` trước ảnh khi đã chuyển trang, `page.close()` nếu đã tới bước "Đóng trình duyệt". Tab khác, giá trị không khớp input ⇒ ghi chú
 "Ghi thao tác — cần xem lại" ở đầu script. Kết quả là candidate `origin = recorded` (nhãn GHI THAO TÁC), `DRAFT`, đi tiếp Trial/Chấp nhận như candidate AI.
 AI không tự chạy sau khi ghi; người dùng muốn sửa thì gửi prompt như bình thường (agent nhận candidate mới nhất làm ngữ cảnh).
+
+**Tải file lên (biến kiểu `file`):** giá trị của biến là *tên* một file mẫu của dự án (`userData/fixtures/<project_id>/`, ngoài artifacts nên
+không bị dọn; xoá dự án thì xoá luôn). Trang Test Cases có khung "File mẫu của dự án" (thêm qua hộp chọn file của main process, tối đa 50 MB/file,
+tên được làm sạch thành tên file Windows hợp lệ; xoá có xác nhận). Form input (Training/Trial/Testing/Ghi thao tác, giá trị mẫu trong schema) chọn
+từ danh sách này. Chạy (Trial/Testing/kiểm chứng nháp): `resolveInput` đổi tên → đường dẫn tuyệt đối trong `input.<field>` (kiểu TS `string`);
+thiếu file ⇒ lỗi input trước khi chạy; snapshot chỉ lưu tên. Training: kiểm tra file tồn tại khi bắt đầu, chép file mẫu vào `mcp-output/fixtures/`
+của attempt (thư mục `--output-dir` mà Playwright MCP luôn cho đọc, không cần `--allow-unrestricted-file-access`), prompt liệt kê đường dẫn cho
+`browser_file_upload` và yêu cầu script dùng `setInputFiles(input.<field>)`. Validator chặn `setInputFiles`/`setFiles` với chuỗi cố định
+(`HARDCODED_FILE`). Ghi thao tác: recorder (chế độ api) báo chọn file thành `fill('C:\fakepath\<tên>')` (hoặc `setInputFiles` với tên file) ⇒ đổi thành
+`setInputFiles(input.<field>)` khi tên khớp input mẫu của biến file (hoặc chỉ có một biến file, kèm ghi chú); nhiều file hoặc không có biến file ⇒ ghi chú
+"cần sửa tay". Chưa hỗ trợ: tải file xuống, kéo-thả file.
 
 **Trial:** chạy đúng source của candidate trên browser context mới với runner storage state của environment
 (chưa có storage state → `AUTH_REQUIRED`); step log, screenshot cuối, trace khi lỗi. `PASSED | FAILED | AUTH_REQUIRED`.
@@ -100,4 +111,6 @@ version `SUSPECTED_BROKEN`. Send to Training tạo attempt mới trong thread c�
 - End-to-end runner với `demo-site` (script viết tay đóng vai candidate): Trial PASSED, Approve, Testing 2 input, locator hỏng → ERROR + SUSPECTED_BROKEN.
 - UI smoke (`scripts/smoke-ui.mjs`) có phần Ghi thao tác: nối vào Chrome đang ghi qua `E2E_RECORDING_CDP_PORT` (chỉ đặt khi test), thao tác thật trên
   demo-site, bấm thanh nổi bằng chuột, kiểm tra script sinh ra dùng `input.*`, đủ ảnh và Trial PASSED với input khác.
+- Tải file: demo-site có `/assets/upload` (multipart) và `/assets`; runner check chạy `setInputFiles(input.banner)` với file ngoài thư mục run;
+  UI smoke thêm file mẫu cho dự án, ghi thao tác upload, Trial PASSED (site nhận đủ 2048 bytes), xoá file mẫu ⇒ Trial báo thiếu file.
 - Spike tích hợp Codex/Cursor + Playwright Extension phải chạy trên máy người dùng (cần extension trong Chrome profile và API key).

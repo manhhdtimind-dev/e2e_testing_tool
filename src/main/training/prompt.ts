@@ -1,5 +1,5 @@
 import type { Environment, InputValues, StepLog, TestCase, ValidationIssue } from "../../shared/types";
-import { SECRET_MASK } from "../../core/inputValidation";
+import { fieldTsType, SECRET_MASK } from "../../core/inputValidation";
 import { stepDirectives } from "../../core/stepDirectives";
 
 export const CANDIDATE_FILE = "candidate.ts";
@@ -14,16 +14,39 @@ export interface RunContext {
 }
 
 function inputTypeLiteral(tc: TestCase): string {
-  const fields = tc.input_schema.fields.map((f) => `${f.name}: ${f.type}`).join("; ");
+  const fields = tc.input_schema.fields.map((f) => `${f.name}: ${fieldTsType(f.type)}`).join("; ");
   return `{ ${fields} }`;
 }
 
 function sampleInputBlock(tc: TestCase, sample: InputValues): string {
   const lines = tc.input_schema.fields.map((f) => {
-    const v = f.secret ? `${SECRET_MASK} (secret — not available during training; still reference input.${f.name} in code)` : JSON.stringify(sample[f.name] ?? "");
+    const v = f.secret
+      ? `${SECRET_MASK} (secret — not available during training; still reference input.${f.name} in code)`
+      : f.type === "file"
+        ? `${JSON.stringify(sample[f.name] ?? "")} (file to upload — see "Files to upload")`
+        : JSON.stringify(sample[f.name] ?? "");
     return `- ${f.name} (${f.type}${f.required ? ", required" : ""}): ${v}`;
   });
   return lines.length ? lines.join("\n") : "- (no input fields)";
+}
+
+export const FIXTURES_DIR = "fixtures";
+
+export interface UploadFile {
+  field: string;
+  name: string;
+  /** Absolute path of the copy in a folder the Playwright MCP server may read. */
+  path: string;
+}
+
+/** How to upload the sample files while exploring and in the script. */
+export function fileInputsBlock(files: UploadFile[]): string {
+  if (!files.length) return "";
+  return `## Files to upload
+The sample files were copied to a folder the browser tools are allowed to read:
+${files.map((f) => `- input.${f.field} = ${JSON.stringify(f.name)} → ${f.path}`).join("\n")}
+- While exploring: click the page's upload control first; when the tool reports a file chooser, call browser_file_upload with the absolute path above (paths as listed, not relative ones).
+- In the script: \`await <locator of the file input or the element that opens the chooser>.setInputFiles(input.<field>)\` — the runner passes the absolute path of the chosen file in input.<field>. Never write a file name or path literally; to check the uploaded name on the page use \`input.<field>.split(/[\\\\/]/).pop()\`. If the page only opens a chooser, use \`const chooser = page.waitForEvent("filechooser"); await <click>; await (await chooser).setFiles(input.<field>);\`.`;
 }
 
 export function testCaseBlock(tc: TestCase, env: Environment, sample: InputValues): string {
@@ -72,7 +95,7 @@ export function directivesBlock(tc: TestCase): string {
 
 export function rulesBlock(tc: TestCase, maxActions: number): string {
   return `## How to work
-1. Use ONLY the Playwright MCP tools of server "playwright" (browser_navigate, browser_snapshot, browser_click, browser_type, browser_fill_form, browser_select_option, browser_press_key, browser_wait_for, ...). They drive the user's already logged-in Chrome profile. Read page structure from the accessibility snapshot; call browser_take_screenshot only when the snapshot is not enough.
+1. Use ONLY the Playwright MCP tools of server "playwright" (browser_navigate, browser_snapshot, browser_click, browser_type, browser_fill_form, browser_select_option, browser_press_key, browser_file_upload, browser_wait_for, ...). They drive the user's already logged-in Chrome profile. Read page structure from the accessibility snapshot; call browser_take_screenshot only when the snapshot is not enough.
 2. Perform the manual steps on the real site with the sample input. One manual step may need several actions. Do not do anything the steps do not ask for. Budget: at most ${maxActions} browser actions.
 3. Write (or overwrite) the file \`${CANDIDATE_FILE}\` in the current working directory:
 \`\`\`ts

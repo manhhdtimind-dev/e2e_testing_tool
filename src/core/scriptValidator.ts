@@ -166,6 +166,13 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
           }
         }
       }
+      if ((method === "setInputFiles" || method === "setFiles") && node.arguments[0]) {
+        const first = node.arguments[0];
+        const literals = ts.isArrayLiteralExpression(first) ? first.elements : [first];
+        if (literals.some((e) => ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) || ts.isTemplateExpression(e))) {
+          add("error", "HARDCODED_FILE", "File tải lên phải lấy từ input.<biến kiểu file> (runner truyền đường dẫn file mẫu của dự án), không ghi cố định đường dẫn", node);
+        }
+      }
       if (method === "screenshot") screenshotCalls++;
       if (method === "close") {
         const viaGetter = ts.isCallExpression(owner) && ts.isPropertyAccessExpression(owner.expression) ? owner.expression.name.text : null;

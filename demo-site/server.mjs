@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 const PORT = Number(process.env.DEMO_PORT ?? 4567);
 const sessions = new Set();
 const campaigns = [];
+const assets = [];
 let broken = false;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -15,7 +16,7 @@ const layout = (title, body, user = true) => `<!doctype html>
 <style>body{font-family:system-ui;margin:0;background:#f5f6f8}header{background:#1f2937;color:#fff;padding:12px 24px;display:flex;justify-content:space-between}
 header a{color:#cbd5e1}main{max-width:760px;margin:24px auto;background:#fff;padding:24px;border-radius:8px}label{display:block;margin:12px 0 4px}
 input,select{padding:8px;width:100%;box-sizing:border-box}button{margin-top:16px;padding:8px 16px}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}</style>
-</head><body>${user ? `<header><span>Demo Ads</span><span>Xin chào demo · <a href="/logout">Logout</a></span></header>` : ""}<main>${body}</main></body></html>`;
+</head><body>${user ? `<header><span>Demo Ads</span><span><a href="/assets">Assets</a> · Xin chào demo · <a href="/logout">Logout</a></span></header>` : ""}<main>${body}</main></body></html>`;
 
 function parseCookies(req) {
   return Object.fromEntries((req.headers.cookie ?? "").split(";").map((c) => c.trim().split("=")).filter((p) => p[0]));
@@ -25,6 +26,20 @@ async function readBody(req) {
   let data = "";
   for await (const chunk of req) data += chunk;
   return Object.fromEntries(new URLSearchParams(data));
+}
+
+/** Minimal multipart/form-data reader: returns the first file part as { name, size }. */
+async function readUpload(req) {
+  const boundary = (req.headers["content-type"] ?? "").match(/boundary=(?:"([^"]+)"|([^;]+))/);
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  if (!boundary) return null;
+  const raw = Buffer.concat(chunks).toString("latin1");
+  const m = raw.match(/Content-Disposition: form-data; name="[^"]*"; filename="([^"]*)"\r\n(?:[^\r\n]+\r\n)*\r\n/i);
+  if (!m || !m[1]) return null;
+  const start = m.index + m[0].length;
+  const end = raw.indexOf(`\r\n--${boundary[1] ?? boundary[2]}`, start);
+  return { name: Buffer.from(m[1], "latin1").toString("utf8"), size: (end < 0 ? raw.length : end) - start };
 }
 
 function send(res, status, html, headers = {}) {
@@ -42,6 +57,7 @@ const server = createServer(async (req, res) => {
   }
   if (url.pathname === "/__admin/reset" && req.method === "POST") {
     campaigns.length = 0;
+    assets.length = 0;
     broken = false;
     return send(res, 200, "reset");
   }
@@ -85,6 +101,22 @@ const server = createServer(async (req, res) => {
     const body = await readBody(req);
     campaigns.push({ name: body.name ?? "", objective: body.objective ?? "" });
     return send(res, 302, "", { location: "/campaigns" });
+  }
+  if (url.pathname === "/assets" && req.method === "GET") {
+    const rows = assets.map((a) => `<tr><td>${esc(a.name)}</td><td>${a.size} bytes</td></tr>`).join("");
+    return send(res, 200, layout("Assets", `<h1>Assets</h1><a href="/assets/upload" role="button">Upload asset</a>
+      <table aria-label="Assets"><thead><tr><th>File</th><th>Size</th></tr></thead><tbody>${rows || `<tr><td colspan="2">Chưa có file</td></tr>`}</tbody></table>`));
+  }
+  if (url.pathname === "/assets/upload" && req.method === "GET") {
+    return send(res, 200, layout("Upload asset", `<h1>Upload asset</h1><form method="post" action="/assets/upload" enctype="multipart/form-data">
+      <label for="file">Banner file</label><input id="file" name="file" type="file" required>
+      <button type="submit">Upload</button></form>`));
+  }
+  if (url.pathname === "/assets/upload" && req.method === "POST") {
+    const file = await readUpload(req);
+    if (!file) return send(res, 400, layout("Upload asset", `<p role="alert">Chưa chọn file</p><a href="/assets/upload">Thử lại</a>`));
+    assets.push(file);
+    return send(res, 302, "", { location: "/assets" });
   }
   send(res, 404, layout("404", "<h1>Không tìm thấy</h1>"));
 });

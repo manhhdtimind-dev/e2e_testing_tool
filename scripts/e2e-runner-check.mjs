@@ -131,6 +131,33 @@ try {
   const html = await (await fetch(`${BASE}/campaigns`, { headers: { cookie: JSON.parse(storageState).cookies.map((c) => `${c.name}=${c.value}`).join("; ") } })).text();
   check(html.includes("Summer Sale 2026") && html.includes("Black Friday"), "both campaigns created with different inputs");
 
+  // File input: the app passes the absolute path of a project fixture (stored outside the run dir).
+  const fixtureDir = join(work, "fixtures", "prj_check");
+  mkdirSync(fixtureDir, { recursive: true });
+  const fixture = join(fixtureDir, "banner-check.png");
+  writeFileSync(fixture, Buffer.alloc(1234, 7));
+  const UPLOAD = `import { expect, type Page } from "@playwright/test";
+
+export async function run(page: Page, input: { banner: string }) {
+  // Step 1: Mở trang Upload asset
+  await page.goto("/assets/upload");
+  // Step 2: Chọn file banner
+  await page.getByLabel("Banner file").setInputFiles(input.banner);
+  // Step 3: Click Upload
+  await page.getByRole("button", { name: "Upload" }).click();
+  await expect(page.getByRole("heading", { name: "Assets" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: input.banner.split(/[\\\\/]/).pop()! })).toBeVisible();
+  await page.screenshot();
+}
+`;
+  const up = await runJob("upload", { banner: fixture }, { source: UPLOAD });
+  check(up.ok, `upload via setInputFiles(input.banner) PASSED (${up.error_code ?? ""} ${(up.error_message ?? "").split("\n")[0]})`);
+  check(up.steps.some((s) => s.action === "setInputFiles"), "setInputFiles recorded in the step log");
+  const assetsHtml = await (await fetch(`${BASE}/assets`, { headers: { cookie: JSON.parse(storageState).cookies.map((c) => `${c.name}=${c.value}`).join("; ") } })).text();
+  check(assetsHtml.includes("banner-check.png") && assetsHtml.includes("1234 bytes"), "demo site received the fixture file with its full content");
+  const upMissing = await runJob("upload-missing", { banner: join(fixtureDir, "missing.png") }, { source: UPLOAD });
+  check(!upMissing.ok, `missing upload file fails the run (${upMissing.error_code})`);
+
   const r3 = await runJob("no-auth", { campaign_name: "X", objective: "Sales" }, { withAuth: false });
   check(!r3.ok && r3.error_code === "AUTH_REQUIRED" && r3.steps.length === 0, `missing runner auth -> AUTH_REQUIRED before first action (${r3.error_code})`);
 

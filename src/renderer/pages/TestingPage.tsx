@@ -100,7 +100,7 @@ export function TestingPage({ intent, onSendToTraining }: { intent: { test_id: s
         </div>
         {tc && (
           <div style={{ marginTop: 12 }}>
-            <InputForm schema={tc.input_schema} values={input} onChange={setInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
+            <InputForm schema={tc.input_schema} projectId={tc.project_id} values={input} onChange={setInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
           </div>
         )}
         <div className="row end" style={{ marginTop: 12 }}>

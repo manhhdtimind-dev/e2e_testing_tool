@@ -6,6 +6,8 @@ export interface AppPaths {
   db: string;
   artifacts: string;
   workspaces: string;
+  /** Upload fixtures, one folder per project; kept apart from artifacts so cleanup never touches them. */
+  fixtures: string;
 }
 
 let current: AppPaths | null = null;
@@ -16,8 +18,9 @@ export function initPaths(dataDir: string): AppPaths {
     db: join(dataDir, "e2e.sqlite"),
     artifacts: join(dataDir, "artifacts"),
     workspaces: join(dataDir, "workspaces"),
+    fixtures: join(dataDir, "fixtures"),
   };
-  for (const d of [p.data, p.artifacts, p.workspaces]) mkdirSync(d, { recursive: true });
+  for (const d of [p.data, p.artifacts, p.workspaces, p.fixtures]) mkdirSync(d, { recursive: true });
   current = p;
   return p;
 }

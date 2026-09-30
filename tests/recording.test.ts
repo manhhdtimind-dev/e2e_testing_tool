@@ -154,9 +154,10 @@ describe("recorded script", () => {
     );
     expect(r.source).toMatch(/run\(page: Page, input: Input\): Promise<void> \{\n {2}await page\.goto\("\/"\);\n {2}await page\.getByRole\('link'/);
     expect(r.source).not.toContain("page1");
-    expect(r.source).not.toContain("logo.png");
+    expect(r.source).not.toContain("setInputFiles");
+    expect(r.source).not.toContain("Users");
     expect(r.notes.join("\n")).toContain("tab/cửa sổ khác");
-    expect(r.notes.join("\n")).toContain("tải file");
+    expect(r.notes.join("\n")).toContain('chưa có biến kiểu file cho file "logo.png"');
   });
 
   it("appends page.close() under the close step when the user reached it", () => {

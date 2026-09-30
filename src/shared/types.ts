@@ -1,6 +1,13 @@
 export type AgentProvider = "codex" | "cursor";
 
-export type FieldType = "string" | "number" | "boolean";
+/** `file`: the value is the name of a file in the project's fixtures folder; scripts receive its absolute path. */
+export type FieldType = "string" | "number" | "boolean" | "file";
+
+export interface ProjectFixture {
+  name: string;
+  size: number;
+  modified_at: string;
+}
 
 export interface InputField {
   name: string;

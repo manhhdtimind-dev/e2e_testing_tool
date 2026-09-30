@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { diffLines } from "diff";
-import type { Evidence, InputSchema, InputValues, StepLog } from "../../shared/types";
+import type { Evidence, InputSchema, InputValues, ProjectFixture, StepLog } from "../../shared/types";
 import { api, artifactUrl } from "../api";
 
 // ---------- toast ----------
@@ -191,6 +191,57 @@ export function Modal({
   );
 }
 
+// ---------- project fixtures (files for upload inputs) ----------
+export function useFixtures(projectId: string | null | undefined, enabled = true) {
+  const toast = useToast();
+  const [list, setList] = useState<ProjectFixture[]>([]);
+  const reload = useCallback(async () => {
+    if (!projectId || !enabled) return setList([]);
+    try {
+      setList(await api.listFixtures(projectId));
+    } catch (e) {
+      setList([]);
+      toast((e as Error).message, "err");
+    }
+  }, [projectId, enabled, toast]);
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+  /** Opens the file picker; returns the first added name. */
+  const add = useCallback(async (): Promise<string | null> => {
+    if (!projectId) return null;
+    try {
+      const res = await api.pickAndAddFixtures(projectId);
+      if (!res) return null;
+      setList(res.fixtures);
+      if (res.skipped.length) toast(`Bỏ qua: ${res.skipped.map((s) => `${s.file} (${s.reason})`).join(", ")}`, "err");
+      if (res.added.length) toast(`Đã thêm ${res.added.length} file mẫu`, "ok");
+      return res.added[0] ?? null;
+    } catch (e) {
+      toast((e as Error).message, "err");
+      return null;
+    }
+  }, [projectId, toast]);
+  const remove = useCallback(
+    async (name: string) => {
+      if (!projectId) return;
+      try {
+        setList(await api.deleteFixture(projectId, name));
+      } catch (e) {
+        toast((e as Error).message, "err");
+      }
+    },
+    [projectId, toast],
+  );
+  return { list, reload, add, remove };
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
 // ---------- input form from schema ----------
 export function InputForm({
   schema,
@@ -198,13 +249,18 @@ export function InputForm({
   onChange,
   secretFieldsFromEnv = [],
   mode,
+  projectId,
 }: {
   schema: InputSchema;
   values: InputValues;
   onChange: (v: InputValues) => void;
   secretFieldsFromEnv?: string[];
   mode: "training" | "run";
+  /** Project whose fixtures file fields choose from. */
+  projectId?: string | null;
 }) {
+  const hasFiles = schema.fields.some((f) => f.type === "file");
+  const fixtures = useFixtures(projectId, hasFiles);
   if (schema.fields.length === 0) return <div className="muted small">Test case không có biến input.</div>;
   return (
     <div className="form-grid">
@@ -224,6 +280,40 @@ export function InputForm({
                 <option value="true">true</option>
                 <option value="false">false</option>
               </select>
+            ) : f.type === "file" ? (
+              projectId ? (
+                <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                  <select
+                    style={{ flex: 1, minWidth: 0 }}
+                    aria-label={`File cho ${f.name}`}
+                    value={values[f.name] ?? ""}
+                    onChange={(e) => onChange({ ...values, [f.name]: e.target.value })}
+                  >
+                    <option value="">— chọn file mẫu —</option>
+                    {fixtures.list.map((x) => (
+                      <option key={x.name} value={x.name}>
+                        {x.name} ({formatBytes(x.size)})
+                      </option>
+                    ))}
+                    {values[f.name] && !fixtures.list.some((x) => x.name === values[f.name]) && (
+                      <option value={values[f.name]}>{values[f.name]} (chưa có trong dự án)</option>
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn sm"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      const name = await fixtures.add();
+                      if (name) onChange({ ...values, [f.name]: name });
+                    }}
+                  >
+                    Thêm file…
+                  </button>
+                </div>
+              ) : (
+                <input type="text" disabled value="Test case chưa thuộc dự án — không có file mẫu" />
+              )
             ) : (
               <input
                 type={f.type === "number" ? "number" : "text"}

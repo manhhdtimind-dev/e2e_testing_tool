@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { ImportPreview, InputField, InputSchema, InputValues, ParsedTestCase, ProjectTarget } from "../../shared/types";
 import { api, type ApiResult } from "../api";
-import { Badge, Modal, Panel, fmtTime, groupLabel, useAction, useConfirm, useToast } from "../components/ui";
+import { Badge, Modal, Panel, fmtTime, formatBytes, groupLabel, useAction, useConfirm, useFixtures, useToast } from "../components/ui";
 
 type CaseRow = ApiResult<"listTestCases">[number];
 type ProjectRow = ApiResult<"listProjects">[number];
@@ -119,7 +119,75 @@ function ImportSetupModal({ projects, initial, onClose, onPicked }: { projects: 
   );
 }
 
-function SchemaEditor({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) => void }) {
+/** Files of a project that `file` inputs choose from. */
+function FixturesBox({ project }: { project: ProjectRow }) {
+  const fixtures = useFixtures(project.project_id);
+  const ask = useConfirm();
+  return (
+    <details className="fixtures-box">
+      <summary>
+        File mẫu của dự án ({fixtures.list.length})
+      </summary>
+      <div className="muted small" style={{ margin: "6px 0" }}>
+        Dùng cho biến kiểu <span className="mono">file</span> (bước tải file lên). Runner, Training và Ghi thao tác lấy file từ đây theo tên.
+      </div>
+      {fixtures.list.length > 0 && (
+        <ul className="fixture-list">
+          {fixtures.list.map((f) => (
+            <li key={f.name}>
+              <span className="mono clip" title={f.name}>
+                {f.name}
+              </span>
+              <span className="muted small">{formatBytes(f.size)}</span>
+              <button
+                className="btn sm"
+                onClick={async () => {
+                  if (await ask(`Xoá file mẫu "${f.name}" khỏi dự án "${project.name}"? Test case đang dùng file này sẽ báo thiếu file khi chạy.`, { okText: "Xoá", danger: true })) {
+                    await fixtures.remove(f.name);
+                  }
+                }}
+              >
+                Xoá
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button className="btn sm" onClick={() => void fixtures.add()}>
+        Thêm file…
+      </button>
+    </details>
+  );
+}
+
+function SampleFileSelect({ projectId, value, onChange }: { projectId: string; value: string; onChange: (v: string) => void }) {
+  const fixtures = useFixtures(projectId);
+  return (
+    <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+      <select aria-label="File mẫu" style={{ flex: 1, minWidth: 0 }} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— chọn file mẫu —</option>
+        {fixtures.list.map((f) => (
+          <option key={f.name} value={f.name}>
+            {f.name}
+          </option>
+        ))}
+        {value && !fixtures.list.some((f) => f.name === value) && <option value={value}>{value} (chưa có trong dự án)</option>}
+      </select>
+      <button
+        type="button"
+        className="btn sm"
+        onClick={async () => {
+          const name = await fixtures.add();
+          if (name) onChange(name);
+        }}
+      >
+        Thêm…
+      </button>
+    </div>
+  );
+}
+
+function SchemaEditor({ draft, setDraft, projectId }: { draft: Draft; setDraft: (d: Draft) => void; projectId?: string }) {
   const update = (i: number, patch: Partial<InputField>, value?: string) => {
     const fields = draft.schema.fields.map((f, idx) => (idx === i ? { ...f, ...patch } : f));
     const sample = { ...draft.sample };
@@ -163,6 +231,7 @@ function SchemaEditor({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) 
                   <option value="string">string</option>
                   <option value="number">number</option>
                   <option value="boolean">boolean</option>
+                  <option value="file">file (tải lên)</option>
                 </select>
               </td>
               <td>
@@ -174,8 +243,15 @@ function SchemaEditor({ draft, setDraft }: { draft: Draft; setDraft: (d: Draft) 
               <td>
                 {f.secret ? (
                   <span className="muted small">Lưu trong secret của environment</span>
+                ) : f.type === "file" && projectId ? (
+                  <SampleFileSelect projectId={projectId} value={draft.sample[f.name] ?? ""} onChange={(v) => update(i, {}, v)} />
                 ) : (
-                  <input type="text" value={draft.sample[f.name] ?? ""} onChange={(e) => update(i, {}, e.target.value)} />
+                  <input
+                    type="text"
+                    placeholder={f.type === "file" ? "tên file mẫu, ví dụ banner.png" : undefined}
+                    value={draft.sample[f.name] ?? ""}
+                    onChange={(e) => update(i, {}, e.target.value)}
+                  />
                 )}
               </td>
               <td>
@@ -430,6 +506,7 @@ function CaseEditor({
   lockId,
   groups,
   projects,
+  projectId,
 }: {
   draft: Draft;
   onChange: (d: Draft) => void;
@@ -438,6 +515,8 @@ function CaseEditor({
   groups: string[];
   /** When given, the project can be chosen. */
   projects?: ProjectRow[];
+  /** Existing project of the draft: sample values of file fields are picked from its fixtures. */
+  projectId?: string;
 }) {
   const groupListId = useId();
   return (
@@ -475,7 +554,7 @@ function CaseEditor({
       </label>
       <div className="field">
         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)" }}>Input schema</span>
-        <SchemaEditor draft={draft} setDraft={onChange} />
+        <SchemaEditor draft={draft} setDraft={onChange} projectId={projectId} />
       </div>
       <label className="field">
         <span>Expected result (người dùng tự đánh giá khi Testing)</span>
@@ -681,6 +760,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
               ))}
             </ul>
           )}
+          {filteredProject && <FixturesBox key={filteredProject.project_id} project={filteredProject} />}
         </Panel>
         {draft ? (
           <Panel
@@ -699,7 +779,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
               ) : undefined
             }
           >
-            <CaseEditor draft={draft} onChange={setDraft} lockId={!isNew} projects={projects} groups={draftGroups} />
+            <CaseEditor draft={draft} onChange={setDraft} lockId={!isNew} projects={projects} groups={draftGroups} projectId={draftProjectId} />
             {issues.length > 0 && <div className="error-box" style={{ marginTop: 12 }}>{issues.join("\n")}</div>}
             {!isNew && current?.raw_import && (
               <details style={{ marginTop: 12 }}>

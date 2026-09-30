@@ -1,5 +1,6 @@
 import ts from "typescript";
 import type { InputField, InputSchema, InputValues } from "../shared/types";
+import { fieldTsType } from "./inputValidation";
 import { fold, stepDirectives } from "./stepDirectives";
 
 /** The subset of a Playwright recorder action the app keeps (never the aria snapshot: it holds typed values). */
@@ -82,7 +83,7 @@ function describeTarget(selector: string | undefined): string {
 
 function inputRef(field: InputField): string {
   const access = /^[A-Za-z_$][\w$]*$/.test(field.name) ? `input.${field.name}` : `input[${JSON.stringify(field.name)}]`;
-  return field.type === "string" ? access : `String(${access})`;
+  return field.type === "string" || field.type === "file" ? access : `String(${access})`;
 }
 
 function templateText(s: string): string {
@@ -171,7 +172,7 @@ interface Ctx {
 /** Rewrites string literals of one recorded statement: test data → input.<field>, URLs → relative. */
 function rewriteStatement(stmt: ts.Statement, sf: ts.SourceFile, action: RecordedAction, c: Ctx): string {
   const edits: { start: number; end: number; text: string }[] = [];
-  const nonSecret = c.fields.filter((f) => !f.secret && (c.opts.sample[f.name] ?? "") !== "");
+  const nonSecret = c.fields.filter((f) => !f.secret && f.type !== "file" && (c.opts.sample[f.name] ?? "") !== "");
   const byValue = (value: string) => nonSecret.filter((f) => c.opts.sample[f.name] === value);
   const secretByValue = (value: string) => c.secretFields.find((f) => value !== "" && c.opts.secrets[f.name] === value);
 
@@ -246,15 +247,59 @@ function rewriteStatement(stmt: ts.Statement, sf: ts.SourceFile, action: Recorde
   return out;
 }
 
+/** Chromium's value of a file input; the recorder's api mode reports a file choice as `fill` with this value. */
+const FAKEPATH_RE = /^[A-Za-z]:\\fakepath\\(.+)$/;
+
+const isUpload = (a: RecordedAction) => a.name === "setInputFiles" || (a.name === "fill" && FAKEPATH_RE.test(a.text ?? ""));
+
+/**
+ * The recorder only knows the names of the chosen files. A single file is mapped to the file field whose sample value
+ * is that name (or to the only file field); anything else stays for the user to fix.
+ */
+function uploadStatements(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): string[] {
+  const target = describeTarget(e.action.selector);
+  const fakePath = e.action.name === "fill" ? (e.action.text ?? "").match(FAKEPATH_RE)?.[1] : undefined;
+  const files = (fakePath ? [fakePath] : (e.action.files ?? [])).map((f) => f.split(/[\\/]/).pop() ?? f);
+  const manual = (why: string) => {
+    c.notes.add(`Bước tải file lên ô ${target}: ${why}; cần sửa tay.`);
+    return [`// Cần sửa: tải file lên ô ${target}`];
+  };
+  const sf = ts.createSourceFile("recorded.ts", e.code, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const method = e.action.name;
+  let call: (ts.CallExpression & { expression: ts.PropertyAccessExpression }) | undefined;
+  const find = (n: ts.Node) => {
+    if (!call && ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === method) {
+      call = n as ts.CallExpression & { expression: ts.PropertyAccessExpression };
+    } else ts.forEachChild(n, find);
+  };
+  find(sf);
+  const stmt = sf.statements.find((s) => call && s.getStart(sf) <= call.getStart(sf) && call.getEnd() <= s.getEnd());
+  if (!call || !stmt || !call.arguments[0] || rootIdentifier(call) !== "page") return manual("không đọc được lệnh đã ghi");
+  if (!files.length) return [sf.text.slice(stmt.getStart(sf), stmt.getEnd())];
+  if (files.length > 1) return manual(`đã chọn ${files.length} file cùng lúc (chỉ hỗ trợ một file cho mỗi biến kiểu file)`);
+
+  const fileFields = c.fields.filter((f) => f.type === "file" && !f.secret);
+  if (!fileFields.length) return manual(`test case chưa có biến kiểu file cho file "${files[0]}" (thêm biến kiểu file và file mẫu của dự án)`);
+  const same = fileFields.filter((f) => c.opts.sample[f.name] === files[0]);
+  const field = same[0] ?? (fileFields.length === 1 ? fileFields[0] : undefined);
+  if (!field) return manual(`file "${files[0]}" không khớp input mẫu của biến kiểu file nào`);
+  if (!same.length) {
+    c.notes.add(`Ô ${target}: file đã chọn lúc ghi ("${files[0]}") khác input mẫu của ${field.name}; script dùng input.${field.name}.`);
+  }
+  const name = call.expression.name;
+  const arg = call.arguments[0];
+  const text = sf.text;
+  return [
+    text.slice(stmt.getStart(sf), name.getStart(sf)) + "setInputFiles" + text.slice(name.getEnd(), arg.getStart(sf)) + inputRef(field) + text.slice(arg.getEnd(), stmt.getEnd()),
+  ];
+}
+
 function statementsFor(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): string[] {
   if (e.page > 0) {
     c.notes.add("Có thao tác trên tab/cửa sổ khác lúc ghi; các thao tác đó không được đưa vào script (script chỉ chạy trên một tab).");
     return [];
   }
-  if (e.action.name === "setInputFiles") {
-    c.notes.add(`Bước tải file lên ô ${describeTarget(e.action.selector)} chưa được ghi (đường dẫn file trên máy lúc ghi đã bị bỏ); cần sửa tay.`);
-    return [`// Cần sửa: tải file lên ô ${describeTarget(e.action.selector)}`];
-  }
+  if (isUpload(e.action)) return uploadStatements(e, c);
   const sf = ts.createSourceFile("recorded.ts", e.code, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   const out: string[] = [];
   for (const stmt of sf.statements) {
@@ -267,7 +312,7 @@ function statementsFor(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): 
 }
 
 function typeLiteral(schema: InputSchema): string {
-  return `{ ${schema.fields.map((f) => `${/^[A-Za-z_$][\w$]*$/.test(f.name) ? f.name : JSON.stringify(f.name)}: ${f.type}`).join("; ")} }`;
+  return `{ ${schema.fields.map((f) => `${/^[A-Za-z_$][\w$]*$/.test(f.name) ? f.name : JSON.stringify(f.name)}: ${fieldTsType(f.type)}`).join("; ")} }`;
 }
 
 const indent = (code: string) =>

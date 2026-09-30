@@ -31,7 +31,9 @@ import { codexAdapter } from "./adapters/codex";
 import { cursorAdapter } from "./adapters/cursor";
 import {
   CANDIDATE_FILE,
+  FIXTURES_DIR,
   bootstrapPrompt,
+  fileInputsBlock,
   initialPrompt,
   parseVerdict,
   projectReferencesBlock,
@@ -44,6 +46,7 @@ import { redactText } from "../../core/inputValidation";
 import { writeProjectReferences } from "./projectContext";
 import { verifyDraft, type VerifyRun } from "./draftVerify";
 import { recordVerificationTrial, runVerification, verificationInput, type VerificationInput } from "../services/execution";
+import { copyFixturesTo, resolveFileFields } from "../services/fixtures";
 
 /** Extra agent turns allowed after the app's verification run of a draft fails. */
 const VERIFY_FIX_ROUNDS = 2;
@@ -102,6 +105,7 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
     );
   }
   const inputIssues = trainingSchemaIssues(tc, req.sample_input);
+  if (!inputIssues.length) inputIssues.push(...resolveFileFields(tc, req.sample_input).issues);
   if (inputIssues.length) throw new AppError(`Input mẫu không hợp lệ:\n${inputIssues.join("\n")}`);
   if (req.agent === "cursor" && !ctx.secrets.has(secretKeys.cursorKey)) throw new AppError("Chưa cấu hình Cursor API key (Cài đặt)");
   if (busyProfiles.has(profile.browser_profile_id)) throw new AppError(`Profile "${profile.display_name}" đang được dùng cho một lượt Training khác`);
@@ -230,8 +234,9 @@ function newestImage(dir: string): string | null {
     for (const name of readdirSync(d)) {
       const p = join(d, name);
       const st = statSync(p);
-      if (st.isDirectory()) walk(p);
-      else if (/\.(png|jpe?g)$/i.test(name) && (!best || st.mtimeMs > best.mtime)) best = { path: p, mtime: st.mtimeMs };
+      if (st.isDirectory()) {
+        if (!(d === dir && name === FIXTURES_DIR)) walk(p);
+      } else if (/\.(png|jpe?g)$/i.test(name) && (!best || st.mtimeMs > best.mtime)) best = { path: p, mtime: st.mtimeMs };
     }
   };
   walk(dir);
@@ -389,6 +394,11 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
           : "";
       emitEvent({ ts: now(), kind: "status", text: `Tham chiếu dự án: ${refs.length} script đã duyệt (${refs.map((r) => r.test_id).join(", ")}).${mode}` });
     }
+    const uploads = copyFixturesTo(tc, attempt.sample_input, join(mcpOut, FIXTURES_DIR));
+    if (uploads.issues.length) throw new AppError(`Input mẫu không hợp lệ:\n${uploads.issues.join("\n")}`);
+    const uploadFiles = Object.entries(uploads.paths).map(([field, path]) => ({ field, name: attempt.sample_input[field], path }));
+    if (uploadFiles.length) emitEvent({ ts: now(), kind: "status", text: `File mẫu để tải lên: ${uploadFiles.map((f) => f.name).join(", ")}.` });
+    const extra = [projectBlock, fileInputsBlock(uploadFiles)].filter(Boolean).join("\n\n");
 
     const lastRun = runContextFor(ctx, attempt.context_ref, latest);
     const priorPrompts = ctx.repo.attempts
@@ -396,7 +406,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       .map((a) => a.prompt)
       .filter(Boolean);
     const buildPrompt = (fresh: boolean, reason: string) => {
-      if (retrain) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, projectBlock);
+      if (retrain) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, extra);
       if (fresh && (latest || priorPrompts.length)) {
         return bootstrapPrompt({
           tc,
@@ -408,10 +418,10 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
           lastRun,
           userPrompt: attempt.prompt,
           reason,
-          extra: projectBlock,
+          extra,
         });
       }
-      if (fresh) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, projectBlock);
+      if (fresh) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, extra);
       return revisePrompt({
         userPrompt: attempt.prompt,
         revisionNo: latest?.revision_no ?? null,
@@ -419,7 +429,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
         tc,
         lastRun,
         maxActions: settings.training_max_actions,
-        extra: projectBlock,
+        extra,
       });
     };
 

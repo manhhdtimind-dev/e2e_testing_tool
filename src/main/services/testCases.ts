@@ -8,6 +8,7 @@ import { checkTestCaseDraft, parseRows, parseSheets, parseYamlCases, type SheetD
 import type { AppContext } from "../context";
 import { paths } from "../paths";
 import { AppError, newId, now } from "../util";
+import { removeProjectFixtures } from "./fixtures";
 
 const sameName = (a: string, b: string) => a.trim().toLocaleLowerCase("vi") === b.trim().toLocaleLowerCase("vi");
 
@@ -39,6 +40,7 @@ export function resolveProject(ctx: AppContext, target: ProjectTarget): Project 
 export function deleteProject(ctx: AppContext, projectId: string) {
   if (ctx.repo.testCases.where("project_id = ?", projectId).length > 0) throw new AppError("Dự án còn test case, không thể xoá");
   ctx.repo.projects.delete(projectId);
+  removeProjectFixtures(projectId);
   ctx.repo.audit("project.delete", "project", projectId);
 }
 

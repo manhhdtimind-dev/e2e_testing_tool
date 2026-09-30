@@ -22,6 +22,7 @@ import { artifactDir, paths, toArtifactRef } from "../paths";
 import { AppError, newId, now, sha256 } from "../util";
 import { environmentSecrets, getEnvironment } from "./environments";
 import { secretKeys } from "./secrets";
+import { resolveFileFields } from "./fixtures";
 import { runJob, setRunnerConcurrency } from "../runner/runnerHost";
 
 function testCaseForScript(ctx: AppContext, scriptId: string): TestCase {
@@ -49,9 +50,11 @@ function resolveInput(ctx: AppContext, tc: TestCase, env: Environment, input: In
   if (missingSecrets.length) {
     issues.push(...missingSecrets.map((f) => `Secret "${f.name}" chưa được cấu hình trong environment "${env.name}"`));
   }
+  const files = issues.length ? { paths: {}, issues: [] } : resolveFileFields(tc, full);
+  issues.push(...files.issues);
   return {
     issues: [...new Set(issues)],
-    runtime: coerceInput(tc.input_schema, full),
+    runtime: { ...coerceInput(tc.input_schema, full), ...files.paths },
     snapshot: maskInput(full, secretNames),
     secretValues: [...secretNames].map((n) => full[n]).filter((v): v is string => !!v),
   };

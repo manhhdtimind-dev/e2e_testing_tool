@@ -496,6 +496,112 @@ try {
   await nav("History");
   await win.waitForTimeout(500);
   check((await win.locator("table.t tbody tr").count()) === 0, "Xoá: lịch sử Testing của test case cũng bị xoá");
+
+  // ---------- upload: project fixtures + file input, recorded and replayed ----------
+  const fixtureSrc = join(out, "banner-smoke.png");
+  writeFileSync(fixtureSrc, Buffer.alloc(2048, 3));
+  await nav("Test Cases");
+  await win.getByLabel("Lọc theo dự án").selectOption({ label: "Dự án B (1)" });
+  const fxBox = win.locator(".fixtures-box");
+  await fxBox.locator("summary").click();
+  await app.evaluate(({ dialog }, p) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [p] });
+  }, fixtureSrc);
+  await fxBox.getByRole("button", { name: "Thêm file…" }).click();
+  await fxBox.locator("li", { hasText: "banner-smoke.png" }).waitFor();
+  check((await fxBox.locator("summary").innerText()).includes("(1)") && (await fxBox.locator("li").innerText()).includes("2.0 KB"), "File mẫu: thêm file vào dự án qua hộp chọn file");
+  const projectB = (await bridge("listProjects")).find((p) => p.name === "Dự án B");
+  await bridge("saveTestCase", {
+    test_id: "TC_UPLOAD_001",
+    title: "Tải banner lên",
+    steps: ["Mở trang Assets", "Click Upload asset", "Chọn file {{banner}}", "Click Upload", "Chụp màn hình danh sách assets"],
+    input_schema: { fields: [{ name: "banner", type: "file", required: true, secret: false }] },
+    sample_input: { banner: "banner-smoke.png" },
+    expected_result: "File xuất hiện trong danh sách Assets",
+    project: { project_id: projectB.project_id },
+    group_name: "Upload",
+  });
+  await nav("Training");
+  await nav("Test Cases");
+  await win.locator(".list li", { hasText: "TC_UPLOAD_001" }).click();
+  const fieldRow = win.locator("table.t tr", { has: win.locator("input.mono") }).first();
+  check(
+    (await fieldRow.locator("select").first().inputValue()) === "file" && (await win.getByLabel("File mẫu", { exact: true }).inputValue()) === "banner-smoke.png",
+    "Schema: biến kiểu file, giá trị mẫu chọn từ file mẫu của dự án",
+  );
+  await shot("15-upload-fixtures");
+
+  await nav("Training");
+  await caseSelect.selectOption("TC_UPLOAD_001");
+  await win.getByRole("button", { name: "Ghi thao tác…" }).click();
+  const upRec = win.locator(".modal", { hasText: "Ghi thao tác — TC_UPLOAD_001" });
+  await upRec.waitFor();
+  check((await upRec.getByLabel("File cho banner").inputValue()) === "banner-smoke.png", "Ghi thao tác: biến file hiện danh sách file mẫu, chọn sẵn input mẫu");
+  await upRec.getByRole("button", { name: "Bắt đầu ghi" }).click();
+  await win.locator(".rec-banner").getByText("Đang ghi thao tác cho TC_UPLOAD_001").waitFor({ timeout: 30_000 });
+  const upBrowser = await chromium.connectOverCDP(`http://127.0.0.1:${RECORDING_CDP_PORT}`);
+  try {
+    const rp = upBrowser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(BASE));
+    await rp.locator("e2e-rec-bar").waitFor({ state: "attached" });
+    const bar = async (button) => {
+      await rp.waitForFunction(() => document.querySelector("e2e-rec-bar")?.__e2eRects);
+      const r = await rp.evaluate((b) => document.querySelector("e2e-rec-bar").__e2eRects()[b], button);
+      await rp.mouse.click(r.x, r.y);
+      if (button !== "stop") await rp.waitForTimeout(250);
+    };
+    await rp.getByRole("link", { name: "Assets" }).click();
+    await rp.waitForURL(/\/assets$/);
+    await bar("next");
+    await rp.getByRole("button", { name: "Upload asset" }).click();
+    await rp.waitForURL(/\/assets\/upload$/);
+    await bar("next");
+    await rp.getByLabel("Banner file").setInputFiles(fixtureSrc);
+    await bar("next");
+    await rp.getByRole("button", { name: "Upload" }).click();
+    await rp.waitForURL(/\/assets$/);
+    await bar("next");
+    await bar("shot");
+    await bar("stop");
+  } finally {
+    await upBrowser.close().catch(() => undefined);
+  }
+  await win.locator(".badge", { hasText: "GHI THAO TÁC" }).waitFor({ timeout: 30_000 });
+  const upCandidate = (await bridge("getScriptState", "TC_UPLOAD_001")).candidates[0];
+  check(
+    upCandidate?.source.includes(".setInputFiles(input.banner)") && !upCandidate.source.includes("banner-smoke") && !upCandidate.source.includes("Cần sửa"),
+    `Ghi thao tác: bước tải file thành setInputFiles(input.banner):\n${upCandidate?.source}`,
+  );
+  check(!upCandidate.warnings.some((w) => w.startsWith("LỖI")), `Ghi thao tác upload: script đạt kiểm tra (${upCandidate.warnings.join(" | ") || "không cảnh báo"})`);
+  await fetch(`${BASE}/__admin/reset`, { method: "POST" });
+  await win.getByRole("button", { name: "Chạy Trial…" }).click();
+  const upTrial = win.getByRole("dialog").filter({ hasText: "Trial — candidate" });
+  check((await upTrial.getByLabel("File cho banner").inputValue()) === "banner-smoke.png", "Trial: chọn file mẫu cho biến file");
+  await upTrial.getByRole("button", { name: "Run Trial" }).click();
+  await upTrial.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
+  const login = await fetch(`${BASE}/__admin/autologin`, { redirect: "manual" });
+  const assetsHtml = await (await fetch(`${BASE}/assets`, { headers: { cookie: login.headers.get("set-cookie").split(";")[0] } })).text();
+  check(assetsHtml.includes("banner-smoke.png") && assetsHtml.includes("2048 bytes"), "Trial upload PASSED: site nhận đúng file mẫu của dự án (2048 bytes)");
+  const upTrialRow = (await bridge("getScriptState", "TC_UPLOAD_001")).trials[0];
+  const upSnapshot = JSON.stringify(upTrialRow?.input_snapshot ?? "");
+  check(upSnapshot.includes("banner-smoke.png") && !upSnapshot.includes("fixtures"), `Trial lưu input là tên file, không lưu đường dẫn (${upSnapshot})`);
+  await shot("15b-upload-trial");
+  await win.keyboard.press("Escape");
+  await upTrial.waitFor({ state: "detached" });
+
+  await nav("Test Cases");
+  await win.getByLabel("Lọc theo dự án").selectOption({ label: "Dự án B (2)" });
+  await fxBox.locator("summary").click();
+  await fxBox.locator("li", { hasText: "banner-smoke.png" }).getByRole("button", { name: "Xoá" }).click();
+  await confirmBox.getByRole("button", { name: "Xoá", exact: true }).click();
+  await fxBox.locator("li").waitFor({ state: "detached" });
+  await nav("Training");
+  await caseSelect.selectOption("TC_UPLOAD_001");
+  await win.getByRole("button", { name: "Chạy Trial…" }).click();
+  const missingText = await upTrial.getByLabel("File cho banner").evaluate((el) => el.options[el.selectedIndex].text);
+  await upTrial.getByRole("button", { name: "Run Trial" }).click();
+  await win.getByText('File mẫu "banner-smoke.png" của biến "banner" không có trong dự án', { exact: false }).first().waitFor({ timeout: 10_000 });
+  check(missingText.includes("chưa có trong dự án"), `Xoá file mẫu: Trial báo thiếu file trước khi chạy (${missingText})`);
+  await win.keyboard.press("Escape");
 } catch (e) {
   failures++;
   console.error("FAIL ", e);

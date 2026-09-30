@@ -106,11 +106,16 @@ describe("projects and groups", () => {
     expect(ctx.repo.listAudit().some((a) => a.action === "testcase.delete" && a.entity_id === "A1")).toBe(true);
   });
 
-  it("deletes only empty projects", () => {
+  it("deletes only empty projects, together with their upload fixtures", () => {
+    initPaths(join(dir, "data"));
     const { project } = confirmImport(ctx, "a.xlsx", { new_name: "P" }, [parsed("A1", "G")]);
+    const fixtures = join(paths().fixtures, project.project_id);
+    mkdirSync(fixtures, { recursive: true });
+    writeFileSync(join(fixtures, "a.png"), "x");
     expect(() => deleteProject(ctx, project.project_id)).toThrow(/còn test case/);
     ctx.repo.testCases.delete("A1");
     deleteProject(ctx, project.project_id);
     expect(listProjects(ctx)).toEqual([]);
+    expect(existsSync(fixtures)).toBe(false);
   });
 });

@@ -9,6 +9,7 @@ import { updateSettings } from "./services/settings";
 import { secretKeys } from "./services/secrets";
 import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, type TestCaseInput } from "./services/testCases";
 import { writeSampleCsv, writeSampleXlsx } from "./services/sampleTemplate";
+import { addFixtures, deleteFixture, listFixtures } from "./services/fixtures";
 import {
   deleteProfile,
   detectLocalProfiles,
@@ -96,6 +97,15 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
       deleteProject(ctx, projectId);
       return true;
     },
+    listFixtures: (projectId: string) => listFixtures(ctx, projectId),
+    pickAndAddFixtures: async (projectId: string) => {
+      const w = win();
+      const opts: Electron.OpenDialogOptions = { title: "Chọn file mẫu để tải lên khi test", properties: ["openFile", "multiSelections"] };
+      const res = w ? await dialog.showOpenDialog(w, opts) : await dialog.showOpenDialog(opts);
+      if (res.canceled || !res.filePaths.length) return null;
+      return addFixtures(ctx, projectId, res.filePaths);
+    },
+    deleteFixture: (projectId: string, name: string) => deleteFixture(ctx, projectId, name),
     getTestCase: (testId: string) => ctx.repo.testCases.get(testId) ?? null,
     pickAndPreviewImport: async () => {
       const w = win();

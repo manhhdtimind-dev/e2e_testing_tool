@@ -481,7 +481,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 <p className="hint" style={{ marginTop: 0 }}>
                   Chạy không dùng AI, trên browser context mới với runner auth của environment "{env?.name ?? "—"}".
                 </p>
-                <InputForm schema={tc.input_schema} values={trialInput} onChange={setTrialInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
+                <InputForm schema={tc.input_schema} projectId={tc.project_id} values={trialInput} onChange={setTrialInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
                 <div className="row" style={{ marginTop: 10 }}>
                   {env && !env.runner_auth_ready && <span className="badge warn">Environment chưa có runner auth</span>}
                   <span style={{ flex: 1 }} />
@@ -541,7 +541,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   <li>Bấm ■ Kết thúc (hoặc đóng cửa sổ Chrome) khi xong. App tạo candidate mới để bạn xem, chạy Trial hoặc gửi prompt cho AI chỉnh tiếp.</li>
                   <li>Mật khẩu/mã bí mật bạn gõ không được lưu vào script; app thay bằng biến secret của test case.</li>
                 </ul>
-                <InputForm schema={tc.input_schema} values={recInput} onChange={setRecInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
+                <InputForm schema={tc.input_schema} projectId={tc.project_id} values={recInput} onChange={setRecInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
                 <div className="row" style={{ marginTop: 10 }}>
                   {env && !env.runner_auth_ready && <span className="badge warn">Environment chưa có runner auth — đăng nhập cho runner ở màn Environment trước</span>}
                   <span style={{ flex: 1 }} />
@@ -578,7 +578,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 <summary className="small" style={{ cursor: "pointer", marginBottom: 8 }}>
                   Input mẫu cho lượt này
                 </summary>
-                <InputForm schema={tc.input_schema} values={sample} onChange={setSample} mode="training" />
+                <InputForm schema={tc.input_schema} projectId={tc.project_id} values={sample} onChange={setSample} mode="training" />
               </details>
               <textarea
                 rows={4}

@@ -1,6 +1,26 @@
-import type { InputSchema, InputValues } from "../shared/types";
+import type { FieldType, InputSchema, InputValues } from "../shared/types";
 
 export const SECRET_MASK = "***";
+
+/** TypeScript type of `input.<field>` inside scripts; a file field holds the absolute path of the file. */
+export function fieldTsType(type: FieldType): string {
+  return type === "file" ? "string" : type;
+}
+
+const RESERVED_WIN_NAME = /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i;
+
+/** A fixture name is a bare file name (no folder), safe to join under the project's fixtures folder. */
+export function isSafeFixtureName(name: string): boolean {
+  return (
+    name.length > 0 &&
+    name.length <= 200 &&
+    name === name.trim() &&
+    !/[\\/:*?"<>|\x00-\x1f]/.test(name) &&
+    !/^\.+$/.test(name) &&
+    !name.endsWith(".") &&
+    !RESERVED_WIN_NAME.test(name)
+  );
+}
 
 export function validateInput(schema: InputSchema, values: InputValues): string[] {
   const issues: string[] = [];
@@ -13,6 +33,7 @@ export function validateInput(schema: InputSchema, values: InputValues): string[
     }
     if (f.type === "number" && Number.isNaN(Number(v))) issues.push(`"${f.name}" phải là số`);
     if (f.type === "boolean" && !/^(true|false)$/i.test(v)) issues.push(`"${f.name}" phải là true/false`);
+    if (f.type === "file" && !isSafeFixtureName(v)) issues.push(`"${f.name}" phải là tên một file mẫu của dự án (không kèm thư mục)`);
   }
   for (const k of Object.keys(values)) {
     if (!known.has(k)) issues.push(`"${k}" không thuộc input_schema`);
