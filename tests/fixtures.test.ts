@@ -12,7 +12,7 @@ import { parseRows } from "../src/core/parser";
 import { fieldTsType, isSafeFixtureName, validateInput } from "../src/core/inputValidation";
 import { validateScript } from "../src/core/scriptValidator";
 import { buildRecordedScript, type RecordingEvent } from "../src/core/recording";
-import { fileInputsBlock, rulesBlock } from "../src/main/training/prompt";
+import { FILE_ACCESS_HINT, fileInputsBlock, isFileAccessDenied, rulesBlock } from "../src/main/training/prompt";
 import type { InputSchema, TestCase } from "../src/shared/types";
 
 const schema: InputSchema = {
@@ -193,8 +193,18 @@ describe("scripts with file inputs", () => {
     expect(block).toContain("browser_file_upload");
     expect(block).toContain("setInputFiles(input.<field>)");
     expect(block).toContain("mcp-output\\fixtures\\banner.png");
+    expect(block).toContain('"Not allowed"');
     expect(fileInputsBlock([])).toBe("");
     const tc = { input_schema: schema, steps: ["a"] } as unknown as TestCase;
     expect(rulesBlock(tc, 10)).toContain("type Input = { title: string; banner: string };");
+  });
+
+  it("detects Chrome refusing file access to the extension", () => {
+    const denied = '### Error\nError: fileChooser.setFiles: Protocol error (DOM.setFileInputFiles): {"code":-32000,"message":"Not allowed"}';
+    expect(isFileAccessDenied({ ts: "", kind: "tool_result", tool: "browser_file_upload", result: denied })).toBe(true);
+    expect(isFileAccessDenied({ ts: "", kind: "tool_result", tool: "browser_run_code_unsafe", result: { content: [{ type: "text", text: denied }] } })).toBe(true);
+    expect(isFileAccessDenied({ ts: "", kind: "tool_result", tool: "browser_file_upload", result: "File access denied: outside allowed roots" })).toBe(false);
+    expect(isFileAccessDenied({ ts: "", kind: "message", text: denied })).toBe(false);
+    expect(FILE_ACCESS_HINT).toContain("chrome://extensions");
   });
 });

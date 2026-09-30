@@ -1,4 +1,4 @@
-import type { Environment, InputValues, StepLog, TestCase, ValidationIssue } from "../../shared/types";
+import type { Environment, InputValues, StepLog, TestCase, TrainingEvent, ValidationIssue } from "../../shared/types";
 import { fieldTsType, SECRET_MASK } from "../../core/inputValidation";
 import { stepDirectives } from "../../core/stepDirectives";
 
@@ -46,8 +46,21 @@ export function fileInputsBlock(files: UploadFile[]): string {
 The sample files were copied to a folder the browser tools are allowed to read:
 ${files.map((f) => `- input.${f.field} = ${JSON.stringify(f.name)} → ${f.path}`).join("\n")}
 - While exploring: click the page's upload control first; when the tool reports a file chooser, call browser_file_upload with the absolute path above (paths as listed, not relative ones).
-- In the script: \`await <locator of the file input or the element that opens the chooser>.setInputFiles(input.<field>)\` — the runner passes the absolute path of the chosen file in input.<field>. Never write a file name or path literally; to check the uploaded name on the page use \`input.<field>.split(/[\\\\/]/).pop()\`. If the page only opens a chooser, use \`const chooser = page.waitForEvent("filechooser"); await <click>; await (await chooser).setFiles(input.<field>);\`.`;
+- In the script: \`await <locator of the file input or the element that opens the chooser>.setInputFiles(input.<field>)\` — the runner passes the absolute path of the chosen file in input.<field>. Never write a file name or path literally; to check the uploaded name on the page use \`input.<field>.split(/[\\\\/]/).pop()\`. If the page only opens a chooser, use \`const chooser = page.waitForEvent("filechooser"); await <click>; await (await chooser).setFiles(input.<field>);\`.
+- If browser_file_upload fails with "Not allowed" (DOM.setFileInputFiles), the user's Chrome does not let the browser extension read files. It will fail the same way every time: do NOT retry it or work around it (hidden input via browser_run_code_unsafe, browser_drop, waiting for "filechooser"). The Trial/Testing runner uses its own browser and can upload, so write the upload step anyway: \`await page.locator('input[type="file"]').setInputFiles(input.<field>)\` (setInputFiles works on hidden inputs; narrow the locator to the input next to the upload area from the snapshot). Write the following steps from the references or what the page shows; do not guess elements that only appear after the upload. Finish with status "done" if every step is written, otherwise "blocked" with reason "file upload not allowed in the user's Chrome".`;
 }
+
+/** Chrome refuses DOM.setFileInputFiles to an extension debugger without "Allow access to file URLs". */
+const FILE_ACCESS_DENIED_RE = /setFileInputFiles[^\n]{0,200}Not allowed/;
+
+export function isFileAccessDenied(e: TrainingEvent): boolean {
+  if (e.kind !== "tool_result" || !e.tool?.startsWith("browser_")) return false;
+  const text = typeof e.result === "string" ? e.result : JSON.stringify(e.result ?? "");
+  return FILE_ACCESS_DENIED_RE.test(text);
+}
+
+export const FILE_ACCESS_HINT =
+  'Chrome chặn extension Playwright MCP Bridge đọc file nên agent không tải file mẫu lên được. Mở chrome://extensions trong profile Training → Playwright MCP Bridge → Chi tiết → bật "Cho phép truy cập vào URL của tệp" (Allow access to file URLs), rồi Training lại. Trial/Testing không bị ảnh hưởng.';
 
 export function testCaseBlock(tc: TestCase, env: Environment, sample: InputValues): string {
   return `## Test case

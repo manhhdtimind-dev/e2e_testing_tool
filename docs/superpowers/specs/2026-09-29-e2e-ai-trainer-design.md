@@ -81,7 +81,10 @@ từ danh sách này. Import tự đặt kiểu `file` cho biến nằm trong b�
 hoặc có giá trị là tên file trần với đuôi phổ biến (`inferFileFields`); đường dẫn và URL giữ `string`. Chạy (Trial/Testing/kiểm chứng nháp): `resolveInput` đổi tên → đường dẫn tuyệt đối trong `input.<field>` (kiểu TS `string`);
 thiếu file ⇒ lỗi input trước khi chạy; snapshot chỉ lưu tên. Training: kiểm tra file tồn tại khi bắt đầu, chép file mẫu vào `mcp-output/fixtures/`
 của attempt (thư mục `--output-dir` mà Playwright MCP luôn cho đọc, không cần `--allow-unrestricted-file-access`), prompt liệt kê đường dẫn cho
-`browser_file_upload` và yêu cầu script dùng `setInputFiles(input.<field>)`. Validator chặn `setInputFiles`/`setFiles` với chuỗi cố định
+`browser_file_upload` và yêu cầu script dùng `setInputFiles(input.<field>)`. Ở chế độ `--extension`, Chrome từ chối `DOM.setFileInputFiles`
+("Not allowed") nếu extension Playwright MCP Bridge chưa bật "Cho phép truy cập vào URL của tệp": prompt dặn agent không thử lại/lách
+(input ẩn, kéo-thả, chờ `filechooser`) mà vẫn viết `setInputFiles(input.<field>)` để runner kiểm chứng; app nhận ra lỗi (`isFileAccessDenied`),
+hiện hướng dẫn bật quyền một lần trong hoạt động của agent và ghi kèm vào lỗi của attempt nếu thất bại. Validator chặn `setInputFiles`/`setFiles` với chuỗi cố định
 (`HARDCODED_FILE`). Ghi thao tác: recorder (chế độ api) báo chọn file thành `fill('C:\fakepath\<tên>')` (hoặc `setInputFiles` với tên file) ⇒ đổi thành
 `setInputFiles(input.<field>)` khi tên khớp input mẫu của biến file (hoặc chỉ có một biến file, kèm ghi chú); nhiều file hoặc không có biến file ⇒ ghi chú
 "cần sửa tay". Chưa hỗ trợ: tải file xuống, kéo-thả file.

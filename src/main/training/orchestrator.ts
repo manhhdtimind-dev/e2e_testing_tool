@@ -31,10 +31,12 @@ import { codexAdapter } from "./adapters/codex";
 import { cursorAdapter } from "./adapters/cursor";
 import {
   CANDIDATE_FILE,
+  FILE_ACCESS_HINT,
   FIXTURES_DIR,
   bootstrapPrompt,
   fileInputsBlock,
   initialPrompt,
+  isFileAccessDenied,
   parseVerdict,
   projectReferencesBlock,
   repairPrompt,
@@ -313,6 +315,7 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
   const secrets = Object.values(environmentSecrets(ctx, env.environment_id));
   const actionLog: TrainingEvent[] = [];
   let finalMessage = "";
+  let fileAccessDenied = false;
 
   const emitEvent = (e: TrainingEvent) => {
     const clean: TrainingEvent = JSON.parse(redactText(JSON.stringify(e), secrets));
@@ -325,6 +328,10 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       if (attempt.action_count > settings.training_max_actions) controller.abort("ACTION_LIMIT");
     }
     ctx.emit("training:event", { attempt_id: attempt.attempt_id, event: { ...clean, result: typeof clean.result === "string" ? truncate(clean.result, 3000) : clean.result } });
+    if (!fileAccessDenied && isFileAccessDenied(clean)) {
+      fileAccessDenied = true;
+      emitEvent({ ts: now(), kind: "error", text: FILE_ACCESS_HINT });
+    }
   };
 
   const timeout = setTimeout(() => controller.abort("TIMEOUT"), settings.training_timeout_min * 60_000);
@@ -634,7 +641,8 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       copyFileSync(shot, dest);
       artifacts.final_screenshot = toArtifactRef(dest);
     }
-    updateAttempt(ctx, attempt, { artifacts, action_count: attempt.action_count, finished_at: now() });
+    const hint = fileAccessDenied && attempt.status === "FAILED" && !attempt.error?.includes(FILE_ACCESS_HINT) ? { error: `${attempt.error ?? ""}\n${FILE_ACCESS_HINT}`.trim() } : {};
+    updateAttempt(ctx, attempt, { artifacts, action_count: attempt.action_count, finished_at: now(), ...hint });
     ctx.repo.audit("training.finish", "training_attempt", attempt.attempt_id, { status: attempt.status, candidate_id: attempt.candidate_id, actions: attempt.action_count });
   }
 }
