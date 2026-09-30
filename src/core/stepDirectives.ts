@@ -1,5 +1,5 @@
 /** Lower-case ASCII form: Vietnamese diacritics removed, đ → d. */
-function fold(text: string): string {
+export function fold(text: string): string {
   return text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

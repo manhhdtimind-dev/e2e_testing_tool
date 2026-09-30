@@ -27,7 +27,7 @@ export function paths(): AppPaths {
   return current;
 }
 
-export function artifactDir(kind: "attempts" | "trials" | "runs", id: string): string {
+export function artifactDir(kind: "attempts" | "trials" | "runs" | "recordings", id: string): string {
   const dir = join(paths().artifacts, kind, id);
   mkdirSync(dir, { recursive: true });
   return dir;

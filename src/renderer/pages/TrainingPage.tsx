@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
+import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, RecordingState, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
 import { ArtifactImage, Badge, CaseOptions, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
 
@@ -18,6 +18,7 @@ type Integration = ApiResult<"getIntegrationStatus">;
 
 const AGENT_LABEL: Record<AgentProvider, string> = { codex: "Codex", cursor: "Cursor" };
 const KIND_LABEL: Record<TrainingAttempt["kind"], string> = { initial: "Lượt đầu", revise: "Prompt sửa", from_test_run: "Từ Testing", switch_agent: "Đổi agent", retrain: "Training lại" };
+const RECORDING_ACTIVE = new Set<RecordingState["status"]>(["STARTING", "RECORDING", "SAVING"]);
 
 type StageState = "idle" | "done" | "active" | "blocked" | "attn";
 
@@ -102,6 +103,9 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const toast = useToast();
   const eventsBox = useRef<HTMLDivElement>(null);
   const [trialOpen, setTrialOpen] = useState(false);
+  const [recOpen, setRecOpen] = useState(false);
+  const [recInput, setRecInput] = useState<InputValues>({});
+  const [rec, setRec] = useState<RecordingState | null>(null);
 
   const tc = cases.find((c) => c.test_id === testId) ?? null;
   const env = envs.find((e) => e.environment_id === envId) ?? null;
@@ -116,6 +120,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
       setProfileId((v) => v || p[0]?.browser_profile_id || "");
       setTestId((v) => v || c[0]?.test_id || "");
     });
+    void api.getRecordingState().then(setRec);
   }, []);
 
   useEffect(() => {
@@ -161,6 +166,20 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
     }
     void reload();
   });
+  useAppEvent<RecordingState>("recording:state", (r) => {
+    setRec(r);
+    if (r.test_id !== testId) return;
+    if (r.status === "SAVED" && r.candidate_id) {
+      setCandidateId(r.candidate_id);
+      toast(
+        `Đã tạo candidate #${r.revision_no} từ ${r.action_count} thao tác ghi.${r.notes.length ? ` Có ${r.notes.length} ghi chú cần xem lại ở đầu script.` : ""}`,
+        "ok",
+      );
+      void reload();
+    } else if (r.status === "FAILED" && r.error) {
+      toast(`Ghi thao tác không thành công: ${r.error}`, "err");
+    }
+  });
   useAppEvent<{ attempt_id: string; event: TrainingEvent }>("training:event", ({ attempt_id, event }) => {
     setLiveEvents((m) => ({ ...m, [attempt_id]: [...(m[attempt_id] ?? []), event].slice(-400) }));
   });
@@ -177,6 +196,8 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const runningAttempt = state?.attempts.find((a) => a.status === "RUNNING" || a.status === "QUEUED") ?? null;
   const activeThread = state?.threads.find((t) => t.id === state.script?.training_thread_id) ?? null;
   const agentSwitch = !!state?.script && !!activeThread && activeThread.provider !== agent;
+  const recActive = !!rec && RECORDING_ACTIVE.has(rec.status);
+  const recHere = recActive && rec?.test_id === testId;
 
   useEffect(() => {
     setStoredEvents([]);
@@ -320,6 +341,32 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
 
       <Rail stages={stages} />
 
+      {rec && recActive && (
+        <div className="rec-banner" role="status">
+          <span className="rec-dot" aria-hidden />
+          <div className="col" style={{ gap: 2 }}>
+            <strong>
+              {rec.status === "STARTING" ? "Đang mở trình duyệt để ghi…" : rec.status === "SAVING" ? "Đang tạo candidate từ thao tác đã ghi…" : `Đang ghi thao tác cho ${rec.test_id}`}
+            </strong>
+            <span className="small">
+              Bước {rec.step}/{rec.step_count} · {rec.action_count} thao tác · {rec.shot_count} ảnh. Thao tác trên cửa sổ Chrome vừa mở; dùng thanh nổi ở góc dưới trang để chuyển bước, đánh
+              dấu chụp màn hình và kết thúc.
+            </span>
+          </div>
+          <span style={{ flex: 1 }} />
+          {rec.status === "RECORDING" && (
+            <>
+              <button className="btn" disabled={busy} onClick={() => run(() => api.cancelRecording(rec.session_id), "Đã huỷ phiên ghi, không tạo candidate")}>
+                Huỷ ghi
+              </button>
+              <button className="btn primary" disabled={busy} onClick={() => run(() => api.finishRecording(rec.session_id))}>
+                Kết thúc ghi
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {!tc ? (
         <div className="panel empty">Chưa có test case. Hãy import ở màn Test Cases.</div>
       ) : (
@@ -390,7 +437,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
               }
             >
               {!candidate ? (
-                <div className="empty">Chưa có candidate. Bắt đầu Training để AI tạo script.</div>
+                <div className="empty">Chưa có candidate. Bắt đầu Training để AI tạo script, hoặc Ghi thao tác để tự làm mẫu trên trình duyệt.</div>
               ) : (
                 <CandidateView
                   key={candidate.candidate_id}
@@ -400,7 +447,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   setShowDiff={setShowDiff}
                   hasPassedTrial={candidateTrials.some((t) => t.status === "PASSED" && t.source_hash === candidate.source_hash && t.environment_id === envId)}
                   busy={busy}
-                  editLocked={!!runningAttempt}
+                  editLocked={!!runningAttempt || recHere}
                   latestTrial={candidateTrials[0]}
                   onOpenTrial={() => setTrialOpen(true)}
                   onSaveEdit={async (source) => {
@@ -477,6 +524,42 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
               </Modal>
             )}
 
+            {recOpen && (
+              <Modal title={`Ghi thao tác — ${tc.test_id}`} onClose={() => setRecOpen(false)}>
+                <p className="hint" style={{ marginTop: 0 }}>
+                  App mở Chrome với runner auth của environment "{env?.name ?? "—"}" và ghi lại thao tác của bạn thành Playwright script (không dùng AI). Khi thao tác, hãy gõ đúng
+                  các giá trị input dưới đây để app thay chúng bằng <span className="mono">input.*</span> trong script.
+                </p>
+                <ul className="hint-list small">
+                  <li>Thanh nổi ở góc dưới trang hiện bước đang làm. Bấm › khi chuyển sang bước tiếp theo để script có chú thích theo từng bước.</li>
+                  <li>Bấm 📷 Chụp màn hình đúng lúc cần ảnh kết quả; nút sáng lên ở các bước "Chụp màn hình…" và tự chuyển sang bước sau.</li>
+                  <li>Bấm ■ Kết thúc (hoặc đóng cửa sổ Chrome) khi xong. App tạo candidate mới để bạn xem, chạy Trial hoặc gửi prompt cho AI chỉnh tiếp.</li>
+                  <li>Mật khẩu/mã bí mật bạn gõ không được lưu vào script; app thay bằng biến secret của test case.</li>
+                </ul>
+                <InputForm schema={tc.input_schema} values={recInput} onChange={setRecInput} secretFieldsFromEnv={env?.secret_fields} mode="run" />
+                <div className="row" style={{ marginTop: 10 }}>
+                  {env && !env.runner_auth_ready && <span className="badge warn">Environment chưa có runner auth — đăng nhập cho runner ở màn Environment trước</span>}
+                  <span style={{ flex: 1 }} />
+                  <button
+                    className="btn primary"
+                    disabled={busy || !env?.runner_auth_ready || recActive}
+                    onClick={async () => {
+                      const r = await run(
+                        () => api.startRecording({ test_id: tc.test_id, environment_id: envId, sample_input: recInput, agent }),
+                        "Đã mở trình duyệt để ghi thao tác",
+                      );
+                      if (r) {
+                        setRec(r);
+                        setRecOpen(false);
+                      }
+                    }}
+                  >
+                    Bắt đầu ghi
+                  </button>
+                </div>
+              </Modal>
+            )}
+
             <Panel title={state?.candidates.length ? "Prompt sửa / training lại" : "Bắt đầu Training"}>
               {contextRef && (
                 <div className="info-box" style={{ marginBottom: 10 }}>
@@ -509,17 +592,28 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                     Huỷ lượt đang chạy
                   </button>
                 )}
+                <button
+                  className="btn"
+                  disabled={busy || !!runningAttempt || recActive || !envId}
+                  title="Tự thao tác trên trình duyệt; app ghi lại thành script (không dùng AI)"
+                  onClick={() => {
+                    setRecInput(tc.sample_input);
+                    setRecOpen(true);
+                  }}
+                >
+                  Ghi thao tác…
+                </button>
                 {!!state?.attempts.length && (
                   <button
                     className="btn"
-                    disabled={busy || !!runningAttempt || !profileId || !envId}
+                    disabled={busy || !!runningAttempt || recHere || !profileId || !envId}
                     onClick={() => start(true)}
                     title="Tạo phiên AI mới, viết lại script từ test case; không dùng candidate cũ. Prompt (nếu có) được gửi kèm."
                   >
                     Training lại từ đầu
                   </button>
                 )}
-                <button className="btn primary" disabled={busy || !!runningAttempt || !profileId || !envId} onClick={() => start()}>
+                <button className="btn primary" disabled={busy || !!runningAttempt || recHere || !profileId || !envId} onClick={() => start()}>
                   {state?.candidates.length ? "Gửi prompt" : "Bắt đầu Training"}
                 </button>
               </div>
@@ -606,7 +700,8 @@ function CandidateView({
     <div className="col" style={{ gap: 10 }}>
       <div className="row">
         <Badge status={candidate.status} />
-        {!candidate.attempt_id && <span className="badge">SỬA TAY</span>}
+        {candidate.origin === "manual" && <span className="badge">SỬA TAY</span>}
+        {candidate.origin === "recorded" && <span className="badge info">GHI THAO TÁC</span>}
         <span className="small muted">
           Revision #{candidate.revision_no} · {fmtTime(candidate.created_at)} · hash <span className="mono">{candidate.source_hash.slice(0, 12)}</span>
         </span>

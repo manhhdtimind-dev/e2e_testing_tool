@@ -116,6 +116,9 @@ export interface AttemptArtifacts {
 
 export type CandidateStatus = "DRAFT" | "APPROVED" | "REJECTED";
 
+/** ai = Training turn, manual = code edited in the app, recorded = built from the user's recorded actions. */
+export type CandidateOrigin = "ai" | "manual" | "recorded";
+
 export interface CandidateRevision {
   candidate_id: string;
   script_id: string;
@@ -125,9 +128,29 @@ export interface CandidateRevision {
   action_log_ref: string | null;
   provider_thread_id: string | null;
   attempt_id: string | null;
+  origin: CandidateOrigin;
   status: CandidateStatus;
   reviewed_at: string | null;
   created_at: string;
+}
+
+export type RecordingStatus = "STARTING" | "RECORDING" | "SAVING" | "SAVED" | "CANCELLED" | "FAILED";
+
+export interface RecordingState {
+  session_id: string;
+  test_id: string;
+  environment_id: string;
+  status: RecordingStatus;
+  /** 1-based manual step the user is on. */
+  step: number;
+  step_count: number;
+  action_count: number;
+  shot_count: number;
+  candidate_id: string | null;
+  revision_no: number | null;
+  notes: string[];
+  error: string | null;
+  started_at: string;
 }
 
 export type TrialStatus = "QUEUED" | "RUNNING" | "PASSED" | "FAILED" | "AUTH_REQUIRED";

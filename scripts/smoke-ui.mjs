@@ -12,8 +12,9 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
-const { _electron } = require("playwright");
+const { _electron, chromium } = require("playwright");
 const PORT = 4598;
+const RECORDING_CDP_PORT = 9339;
 const BASE = `http://localhost:${PORT}`;
 const out = join(root, ".e2e-data", "smoke");
 const dataDir = join(out, "data");
@@ -65,7 +66,7 @@ const check = (cond, label) => {
 const demo = spawn(process.execPath, [join(root, "demo-site/server.mjs")], { env: { ...process.env, DEMO_PORT: String(PORT), DEMO_AUTOLOGIN: "1" }, stdio: "pipe" });
 await new Promise((r) => demo.stdout.once("data", r));
 
-const app = await _electron.launch({ executablePath: require("electron"), args: [root], env: { ...process.env, E2E_DATA_DIR: dataDir } });
+const app = await _electron.launch({ executablePath: require("electron"), args: [root], env: { ...process.env, E2E_DATA_DIR: dataDir, E2E_RECORDING_CDP_PORT: String(RECORDING_CDP_PORT) } });
 const errors = [];
 try {
   const win = await app.firstWindow();
@@ -323,6 +324,83 @@ try {
   await win.getByText("Version v2").first().waitFor();
   const v2 = (await bridge("getScriptState", "TC_CAMP_001")).versions.find((v) => v.version_no === 2);
   check(v2?.status === "APPROVED" && v2.trial_id === null, "Chấp nhận candidate chưa Trial tạo version v2 (không gắn Trial)");
+
+  // ---------- record the steps (Playwright recorder, no AI) ----------
+  await fetch(`${BASE}/__admin/break?on=0`, { method: "POST" });
+  await win.getByRole("button", { name: "Ghi thao tác…" }).click();
+  const recModal = win.locator(".modal", { hasText: "Ghi thao tác — TC_CAMP_001" });
+  await recModal.waitFor();
+  await recModal.locator(".field", { hasText: "campaign_name" }).locator("input").fill("Rec Campaign 01");
+  await recModal.locator(".field", { hasText: "objective" }).locator("input").fill("Traffic");
+  await recModal.getByRole("button", { name: "Bắt đầu ghi" }).click();
+  const banner = win.locator(".rec-banner");
+  await banner.getByText("Đang ghi thao tác cho TC_CAMP_001").waitFor({ timeout: 30_000 });
+  check((await banner.innerText()).includes("Bước 1/7"), "Ghi thao tác: mở Chrome, trang Training hiện đang ghi ở bước 1/7");
+  check(await win.getByRole("button", { name: "Gửi prompt" }).isDisabled(), "Ghi thao tác: không gửi prompt Training được trong lúc ghi");
+  const recBrowser = await chromium.connectOverCDP(`http://127.0.0.1:${RECORDING_CDP_PORT}`);
+  try {
+    const rp = recBrowser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(BASE));
+    await rp.locator("e2e-rec-bar").waitFor({ state: "attached" });
+    const bar = async (button) => {
+      await rp.waitForFunction(() => document.querySelector("e2e-rec-bar")?.__e2eRects);
+      const r = await rp.evaluate((b) => document.querySelector("e2e-rec-bar").__e2eRects()[b], button);
+      await rp.mouse.click(r.x, r.y);
+      if (button !== "stop") await rp.waitForTimeout(250);
+    };
+    await bar("next");
+    await rp.getByRole("button", { name: "Create Campaign" }).click();
+    await rp.waitForURL(/\/campaigns\/new$/);
+    await bar("next");
+    await rp.getByLabel("Campaign Name").click();
+    await rp.getByLabel("Campaign Name").fill("Rec Campaign 01");
+    await bar("next");
+    await rp.getByLabel("Objective").selectOption("Traffic");
+    await bar("next");
+    await bar("shot");
+    check((await banner.innerText()).includes("Bước 6/7"), "Thanh nổi: 📷 ở bước Chụp màn hình tự chuyển sang bước sau");
+    await rp.getByRole("button", { name: "Save" }).click();
+    await rp.waitForURL(/\/campaigns$/);
+    await bar("next");
+    await bar("shot");
+    await shot("13a-recording-banner");
+    await rp.screenshot({ path: join(shots, "13a-recording-toolbar.png") });
+    const pwTools = await rp.evaluate(() => ({
+      glass: document.querySelectorAll("x-pw-glass").length,
+      top: document.elementFromPoint(innerWidth / 2, 12)?.tagName,
+    }));
+    check(pwTools.glass > 0 && pwTools.top !== "X-PW-GLASS", `Thanh công cụ riêng của Playwright recorder bị ẩn, không bấm được (${JSON.stringify(pwTools)})`);
+    await bar("stop");
+  } finally {
+    await recBrowser.close().catch(() => undefined);
+  }
+  await win.locator(".badge", { hasText: "GHI THAO TÁC" }).waitFor({ timeout: 30_000 });
+  const recSession = await bridge("getRecordingState");
+  check(recSession.status === "SAVED" && recSession.action_count === 6 && recSession.shot_count === 2, `Ghi thao tác: đếm 6 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
+  const recorded = (await bridge("getScriptState", "TC_CAMP_001")).candidates[0];
+  check(recorded.origin === "recorded" && recorded.revision_no === 3 && recorded.attempt_id === null, "Ghi thao tác: tạo candidate #3 có nhãn GHI THAO TÁC");
+  check(
+    recorded.source.includes(".fill(input.campaign_name)") &&
+      recorded.source.includes(".selectOption(input.objective)") &&
+      !recorded.source.includes("Rec Campaign") &&
+      !recorded.source.includes("Traffic") &&
+      (recorded.source.match(/await page\.screenshot\(\);/g) ?? []).length === 2 &&
+      recorded.source.includes("// Step 5: Chụp màn hình form") &&
+      recorded.source.includes("await page.waitForURL(/\\/campaigns(?:[?#]|$)/);\n  await page.screenshot();\n}") &&
+      !recorded.source.includes("e2e-rec-bar"),
+    `Ghi thao tác: script dùng input.*, có 2 lệnh chụp và chú thích theo bước:\n${recorded.source}`,
+  );
+  check(!recorded.warnings.some((w) => w.startsWith("LỖI")), `Ghi thao tác: script đạt kiểm tra (${recorded.warnings.join(" | ") || "không cảnh báo"})`);
+  check(!(await win.locator(".rec-banner").count()), "Ghi thao tác: kết thúc thì ẩn thanh trạng thái đang ghi");
+  await shot("13b-recorded-candidate");
+  await win.getByRole("button", { name: "Chạy Trial…" }).click();
+  const recTrial = win.getByRole("dialog");
+  await recTrial.locator(".field", { hasText: "campaign_name" }).locator("input").fill("Rec Trial 02");
+  await recTrial.getByRole("button", { name: "Run Trial" }).click();
+  await recTrial.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
+  await recTrial.locator(".slides img.shot").waitFor();
+  check((await recTrial.locator(".slide-count").innerText()) === "1/2", "Trial candidate ghi thao tác PASSED với input khác, có 2 ảnh");
+  await win.keyboard.press("Escape");
+  await recTrial.waitFor({ state: "detached" });
 
   // ---------- history + settings ----------
   await nav("History");

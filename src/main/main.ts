@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { fromArtifactRef, initPaths } from "./paths";
 import { createApi, type Api } from "./api";
 import { cleanupArtifacts } from "./services/history";
+import { abortRecording } from "./recording/session";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const devUrl = process.env.E2E_RENDERER_URL;
@@ -107,6 +108,10 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("before-quit", () => {
+  void abortRecording();
 });
 
 app.on("window-all-closed", () => {

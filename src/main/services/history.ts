@@ -143,7 +143,7 @@ export function cleanupArtifacts(ctx: AppContext) {
   const days = ctx.settings().artifact_retention_days;
   const cutoff = Date.now() - days * 86_400_000;
   let removed = 0;
-  for (const kind of ["attempts", "trials", "runs"]) {
+  for (const kind of ["attempts", "trials", "runs", "recordings"]) {
     const base = join(paths().artifacts, kind);
     if (!existsSync(base)) continue;
     for (const id of readdirSync(base)) {

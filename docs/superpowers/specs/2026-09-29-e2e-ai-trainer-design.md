@@ -54,6 +54,18 @@ tool event vào action log → đọc `candidate.ts` → validate AST (hàm `run
 không hardcode input mẫu/secret, không toạ độ chuột, không import/API ngoài danh sách cho phép) → nếu lỗi gửi lại tối đa 2
 lượt sửa trong cùng thread → tạo candidate revision bất biến (`source_hash` sha256). Giới hạn thời gian và số browser action.
 
+**Ghi thao tác (không dùng AI):** người dùng đã duyệt lệch khỏi mục "human takeover ngoài phạm vi" của yêu cầu.
+Nút "Ghi thao tác…" ở Training mở modal nhập input mẫu. Điều kiện: environment có runner auth, script không đang Training, và chỉ một phiên ghi tại một thời điểm.
+App mở Chrome riêng bằng Playwright, dùng storage state runner auth của environment (không copy cookie từ profile Training), bật recorder của Playwright
+(`context._enableRecorder`, API riêng — ghim `playwright@1.63.0`). Một thanh nổi (custom element `e2e-rec-bar`, shadow root đóng, gọi app qua `exposeBinding`)
+cho chuyển bước trước/sau, đánh dấu "Chụp màn hình" (tự sang bước kế nếu bước hiện tại là bước chụp) và "Kết thúc"; thanh công cụ riêng của recorder bị ẩn.
+Trang Training hiện thanh trạng thái đang ghi và khoá Training/sửa tay/xoá cho test case đó. Kết thúc (hoặc đóng Chrome) → `src/core/recording.ts`:
+bỏ nhiễu (click trên thanh nổi, click lấy focus trước khi gõ, click submit sau Enter, điều hướng lặp), giữ locator của recorder, thay giá trị khớp input mẫu bằng
+`input.<field>` (kể cả trong locator, khớp một phần ⇒ template string), giá trị secret ⇒ field secret (không khớp ⇒ `""` + ghi chú), chèn `// Step N`, `page.screenshot()`,
+`page.waitForURL` trước ảnh khi đã chuyển trang, `page.close()` nếu đã tới bước "Đóng trình duyệt". Tab khác, tải file, giá trị không khớp input ⇒ ghi chú
+"Ghi thao tác — cần xem lại" ở đầu script. Kết quả là candidate `origin = recorded` (nhãn GHI THAO TÁC), `DRAFT`, đi tiếp Trial/Chấp nhận như candidate AI.
+AI không tự chạy sau khi ghi; người dùng muốn sửa thì gửi prompt như bình thường (agent nhận candidate mới nhất làm ngữ cảnh).
+
 **Trial:** chạy đúng source của candidate trên browser context mới với runner storage state của environment
 (chưa có storage state → `AUTH_REQUIRED`); step log, screenshot cuối, trace khi lỗi. `PASSED | FAILED | AUTH_REQUIRED`.
 
@@ -69,6 +81,8 @@ version `SUSPECTED_BROKEN`. Send to Training tạo attempt mới trong thread c�
 - Secret không nằm trong test case, prompt, script, log hiển thị; field schema `secret` được che `***` trong snapshot/log.
 - Runner: tiến trình con, Node permission model (`--permission`, chỉ ghi vào thư mục run + temp), chặn điều hướng document ngoài `allowed_domains`,
   chỉ cho phép import `@playwright/test`/`playwright`. Backend không `eval` mã do model sinh.
+- Ghi thao tác: chỉ giữ `name/selector/text/key/options/url/files` của action recorder (bỏ `ariaSnapshot` vì chứa giá trị đã gõ, kể cả mật khẩu);
+  event chỉ nằm trong bộ nhớ và bị xoá sau khi tạo candidate; `action_log.json` chỉ chứa code đã thay input/secret.
 - Không chạy 2 attempt đồng thời trên cùng profile; giới hạn số runner đồng thời; timeout cho mọi attempt/run.
 - Audit log cho import, prompt, chọn agent/profile, candidate, trial, approve, test run, review. Dọn artifact theo số ngày lưu.
 
@@ -76,4 +90,6 @@ version `SUSPECTED_BROKEN`. Send to Training tạo attempt mới trong thread c�
 
 - Unit test (Vitest) cho `src/core`.
 - End-to-end runner với `demo-site` (script viết tay đóng vai candidate): Trial PASSED, Approve, Testing 2 input, locator hỏng → ERROR + SUSPECTED_BROKEN.
+- UI smoke (`scripts/smoke-ui.mjs`) có phần Ghi thao tác: nối vào Chrome đang ghi qua `E2E_RECORDING_CDP_PORT` (chỉ đặt khi test), thao tác thật trên
+  demo-site, bấm thanh nổi bằng chuột, kiểm tra script sinh ra dùng `input.*`, đủ ảnh và Trial PASSED với input khác.
 - Spike tích hợp Codex/Cursor + Playwright Extension phải chạy trên máy người dùng (cần extension trong Chrome profile và API key).

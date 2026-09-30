@@ -184,6 +184,10 @@ export const MIGRATIONS: string[] = [
   UPDATE test_cases SET project_id = 'prj_default' WHERE project_id IS NULL;
   CREATE INDEX idx_test_cases_project ON test_cases(project_id, group_name);
   `,
+  `
+  ALTER TABLE candidates ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai';
+  UPDATE candidates SET origin = 'manual' WHERE attempt_id IS NULL;
+  `,
 ];
 
 export type Row = Record<string, unknown>;

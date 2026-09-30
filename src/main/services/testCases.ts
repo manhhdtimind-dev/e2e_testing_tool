@@ -249,6 +249,7 @@ export function deleteTestCase(ctx: AppContext, testId: string, isTraining: (scr
     ...r.attempts.map((id) => join(paths().artifacts, "attempts", id)),
     ...r.trials.map((id) => join(paths().artifacts, "trials", id)),
     ...r.runs.map((id) => join(paths().artifacts, "runs", id)),
+    ...r.candidates.map((id) => join(paths().artifacts, "recordings", id)),
     ...(sid ? [join(paths().workspaces, sid)] : []),
   ];
   let leftover = 0;

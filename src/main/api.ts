@@ -49,6 +49,9 @@ import { cancelTraining, isScriptTraining, saveManualCandidate, startTraining, t
 import { runPreflight } from "./training/preflight";
 import { validateScript } from "../core/scriptValidator";
 import { getIntegrationStatus, runIntegrationCheck } from "./training/integrationCheck";
+import { cancelRecording, finishRecording, isRecording, recordingState, startRecording } from "./recording/session";
+
+const RECORDING_BUSY = "Test case này đang được ghi thao tác; kết thúc hoặc huỷ phiên ghi trước.";
 export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
   const saveDialog = async (defaultPath: string, filters: Electron.FileFilter[]) => {
     const w = win();
@@ -129,7 +132,10 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     confirmImport: (fileName: string, project: ProjectTarget, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, project, cases),
     saveTestCase: (input: TestCaseInput) => saveTestCase(ctx, input),
     testCaseDeleteImpact: (testId: string) => deleteImpact(ctx, testId),
-    deleteTestCase: (testId: string) => deleteTestCase(ctx, testId, isScriptTraining),
+    deleteTestCase: (testId: string) => {
+      if (isRecording(testId)) throw new AppError(RECORDING_BUSY);
+      return deleteTestCase(ctx, testId, isScriptTraining);
+    },
 
     // ---------- environments & profiles ----------
     listEnvironments: () =>
@@ -161,8 +167,8 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
         ...c,
         warnings: tc
           ? validateScript(c.source, { schema: tc.input_schema, sampleInput: {}, steps: tc.steps })
-              .issues.filter((i) => i.severity === "warning")
-              .map((i) => `${i.line ? `dòng ${i.line}: ` : ""}${i.message}`)
+              .issues.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1))
+              .map((i) => `${i.severity === "error" ? "LỖI: " : ""}${i.line ? `dòng ${i.line}: ` : ""}${i.message}`)
           : [],
       }));
       return {
@@ -179,11 +185,24 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
         versions: ctx.repo.versions.where("script_id = ? ORDER BY version_no DESC", script.script_id),
       };
     },
-    startTraining: (req: StartTrainingRequest) => startTraining(ctx, req),
+    startTraining: (req: StartTrainingRequest) => {
+      if (isRecording(req.test_id)) throw new AppError(RECORDING_BUSY);
+      return startTraining(ctx, req);
+    },
     cancelTraining: (attemptId: string) => cancelTraining(ctx, attemptId),
     markCandidateReviewed: (candidateId: string) => markCandidateReviewed(ctx, candidateId),
     rejectCandidate: (candidateId: string) => rejectCandidate(ctx, candidateId),
-    saveManualCandidate: (candidateId: string, source: string, envId: string) => saveManualCandidate(ctx, candidateId, source, envId || undefined),
+    saveManualCandidate: (candidateId: string, source: string, envId: string) => {
+      const script = ctx.repo.scripts.get(ctx.repo.candidates.get(candidateId)?.script_id ?? "");
+      if (script && isRecording(script.test_id)) throw new AppError(RECORDING_BUSY);
+      return saveManualCandidate(ctx, candidateId, source, envId || undefined);
+    },
+
+    // ---------- recording (user demonstrates the steps; Playwright recorder) ----------
+    startRecording: (req: { test_id: string; environment_id: string; sample_input: InputValues; agent: AgentProvider }) => startRecording(ctx, req),
+    finishRecording: (sessionId: string) => finishRecording(ctx, sessionId),
+    cancelRecording: (sessionId: string) => cancelRecording(ctx, sessionId),
+    getRecordingState: () => recordingState(),
     startTrial: (candidateId: string, envId: string, input: InputValues) => startTrial(ctx, candidateId, envId, input),
     clearTrials: (candidateId: string) => clearTrials(ctx, candidateId),
     approveCandidate: (candidateId: string, envId: string) => approveCandidate(ctx, candidateId, envId),

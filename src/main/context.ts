@@ -3,7 +3,7 @@ import type { SecretStore } from "./services/secrets";
 import type { Settings } from "../shared/types";
 import { getSettings } from "./services/settings";
 
-export type AppEventType = "training:event" | "training:attempt" | "trial:update" | "run:update" | "auth:session";
+export type AppEventType = "training:event" | "training:attempt" | "trial:update" | "run:update" | "auth:session" | "recording:state";
 
 export interface AppContext {
   repo: Repo;

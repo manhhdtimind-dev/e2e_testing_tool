@@ -14,6 +14,7 @@ const candidate: CandidateRevision = {
   action_log_ref: null,
   provider_thread_id: null,
   attempt_id: null,
+  origin: "manual",
   status: "DRAFT",
   reviewed_at: "2026-09-29T00:00:00Z",
   created_at: "2026-09-29T00:00:00Z",

@@ -22,6 +22,8 @@ describe("migrations", () => {
     old.exec(`INSERT INTO test_cases VALUES ('TC1','t','[]','{"fields":[]}','{}','e',NULL,'x','x','x')`);
     old.exec(`INSERT INTO scripts VALUES ('s1','TC1','codex',NULL,'x')`);
     old.exec(`INSERT INTO versions VALUES ('s1',1,'c1','h1','src','trial1','e1','APPROVED','x','me')`);
+    old.exec(`INSERT INTO candidates VALUES ('c1','s1',1,'src','h1',NULL,'th1','a1','APPROVED','x','x')`);
+    old.exec(`INSERT INTO candidates VALUES ('c2','s1',2,'src2','h2',NULL,NULL,NULL,'DRAFT','x','x')`);
     old.close();
 
     const db = new Db(file);
@@ -32,6 +34,10 @@ describe("migrations", () => {
     expect(() => db.run("UPDATE versions SET source = 'changed' WHERE version_no = 1")).toThrow(/immutable/);
     expect(db.get("SELECT project_id, group_name FROM test_cases WHERE test_id = 'TC1'")).toEqual({ project_id: "prj_default", group_name: "" });
     expect(db.get("SELECT name FROM projects WHERE project_id = 'prj_default'")).toEqual({ name: "Dự án mặc định" });
+    expect(db.all("SELECT candidate_id, origin FROM candidates ORDER BY revision_no")).toEqual([
+      { candidate_id: "c1", origin: "ai" },
+      { candidate_id: "c2", origin: "manual" },
+    ]);
     db.raw.close();
   });
 
