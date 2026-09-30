@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, RecordingState, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { ArtifactImage, Badge, CaseOptions, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useToast } from "../components/ui";
+import { ArtifactImage, Badge, CaseOptions, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useConfirm, useToast } from "../components/ui";
 
 export interface TrainingIntent {
   test_id: string;
@@ -101,6 +101,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const [trialSteps, setTrialSteps] = useState<Record<string, number>>({});
   const { run, busy } = useAction();
   const toast = useToast();
+  const ask = useConfirm();
   const eventsBox = useRef<HTMLDivElement>(null);
   const [trialOpen, setTrialOpen] = useState(false);
   const [recOpen, setRecOpen] = useState(false);
@@ -462,7 +463,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                     return true;
                   }}
                   onReject={async () => {
-                    if (!confirm(`Từ chối candidate #${candidate.revision_no}?`)) return;
+                    if (!(await ask(`Từ chối candidate #${candidate.revision_no}?`, { okText: "Từ chối", danger: true }))) return;
                     await run(() => api.rejectCandidate(candidate.candidate_id), "Đã từ chối candidate");
                     void reload();
                   }}
@@ -511,7 +512,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                         className="btn sm ghost"
                         disabled={busy || candidateTrials.every((t) => t.status === "QUEUED" || t.status === "RUNNING")}
                         onClick={async () => {
-                          if (!confirm(`Xoá kết quả các lượt Trial đã chạy của candidate #${candidate.revision_no} (kèm screenshot, trace)?`)) return;
+                          if (!(await ask(`Xoá kết quả các lượt Trial đã chạy của candidate #${candidate.revision_no} (kèm screenshot, trace)?`, { okText: "Xoá", danger: true }))) return;
                           const r = await run(() => api.clearTrials(candidate.candidate_id));
                           if (!r) return;
                           toast(r.kept ? `Đã xoá ${r.removed} lượt Trial; giữ ${r.kept} lượt đang chạy hoặc gắn với version.` : `Đã xoá ${r.removed} lượt Trial.`, "ok");

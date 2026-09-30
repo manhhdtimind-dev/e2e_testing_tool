@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BrowserProfile, PreflightResult } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
-import { Badge, Field, Panel, fmtTime, useAction } from "../components/ui";
+import { Badge, Field, Panel, fmtTime, useAction, useConfirm } from "../components/ui";
 
 type EnvRow = ApiResult<"listEnvironments">[number];
 type Detected = ApiResult<"detectProfiles">[number];
@@ -23,6 +23,7 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
   const [preProfile, setPreProfile] = useState("");
   const [pre, setPre] = useState<PreflightResult | null>(null);
   const { run, busy } = useAction();
+  const ask = useConfirm();
 
   useEffect(() => {
     setD(
@@ -157,7 +158,7 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
               <button
                 className="btn"
                 onClick={async () => {
-                  if (!confirm("Xoá runner auth state?")) return;
+                  if (!(await ask("Xoá runner auth state?", { okText: "Xoá", danger: true }))) return;
                   await run(() => api.clearRunnerAuth(env.environment_id), "Đã xoá runner auth");
                   onSaved(env.environment_id);
                 }}
@@ -212,6 +213,7 @@ function ProfilesPanel({ profiles, reload }: { profiles: BrowserProfile[]; reloa
   useEffect(() => {
     api.detectProfiles().then(setDetected).catch(() => setDetected([]));
   }, []);
+  const ask = useConfirm();
   const matchedIndex = detected.findIndex((p) => p.browser === draft.browser && p.profile_dir_name === draft.profile_dir_name.trim());
 
   return (
@@ -246,7 +248,7 @@ function ProfilesPanel({ profiles, reload }: { profiles: BrowserProfile[]; reloa
                   <button
                     className="btn sm"
                     onClick={async () => {
-                      if (!confirm(`Xoá profile ${p.display_name}?`)) return;
+                      if (!(await ask(`Xoá profile ${p.display_name}?`, { okText: "Xoá", danger: true }))) return;
                       await run(() => api.deleteProfile(p.browser_profile_id), "Đã xoá profile");
                       reload();
                     }}

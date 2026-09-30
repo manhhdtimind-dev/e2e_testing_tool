@@ -1,10 +1,12 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
-import { ToastProvider } from "./components/ui";
+import { ConfirmProvider, ToastProvider } from "./components/ui";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
   <ToastProvider>
-    <App />
+    <ConfirmProvider>
+      <App />
+    </ConfirmProvider>
   </ToastProvider>,
 );

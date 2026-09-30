@@ -79,6 +79,11 @@ try {
   const win = await app.firstWindow();
   win.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   win.on("pageerror", (e) => errors.push(String(e)));
+  win.on("dialog", (d) => {
+    errors.push(`Hộp thoại gốc của trình duyệt (làm mất focus cửa sổ Electron): ${d.message()}`);
+    void d.dismiss();
+  });
+  const confirmBox = win.locator(".modal.small[role=dialog]");
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setContentSize(1440, 900));
   const shot = (name) => win.screenshot({ path: join(shots, `${name}.png`) });
   const nav = (label) => win.locator(".topnav button", { hasText: label }).click();
@@ -230,7 +235,7 @@ try {
   );
   check((await win.locator(".panel", { hasText: /^Trial/ }).count()) === 0, "Trên trang không còn khung Trial riêng");
   await win.getByRole("button", { name: "Chạy Trial…" }).click();
-  const trialModal = win.getByRole("dialog");
+  const trialModal = win.getByRole("dialog").filter({ hasText: "Trial — candidate" });
   await trialModal.getByRole("button", { name: "Run Trial" }).click();
   await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ timeout: 90_000 });
   check(true, "Trial PASSED qua modal");
@@ -263,8 +268,16 @@ try {
     return { bottom: m.getBoundingClientRect().bottom, vh: window.innerHeight, overflow: getComputedStyle(body).overflowY, scrollable: body.scrollHeight > body.clientHeight };
   });
   check(layout.bottom <= layout.vh && layout.overflow === "auto" && layout.scrollable, `Modal Trial nằm trong cửa sổ và cuộn được (${JSON.stringify(layout)})`);
-  win.once("dialog", (d) => d.accept());
   await trialModal.getByRole("button", { name: "Xoá kết quả cũ" }).click();
+  await confirmBox.waitFor();
+  await win.keyboard.press("Escape");
+  await confirmBox.waitFor({ state: "detached" });
+  check(
+    (await trialModal.isVisible()) && (await trialModal.getByText("Trial PASSED: script chạy hết action").isVisible()),
+    "Hộp xác nhận trong app: Esc chỉ huỷ xác nhận, modal Trial vẫn mở, chưa xoá gì",
+  );
+  await trialModal.getByRole("button", { name: "Xoá kết quả cũ" }).click();
+  await confirmBox.getByRole("button", { name: "Xoá", exact: true }).click();
   await trialModal.getByText("Trial PASSED: script chạy hết action").waitFor({ state: "detached" });
   check((await bridge("getScriptState", "TC_CAMP_001")).trials.length === 0, "Xoá kết quả Trial cũ");
   await trialModal.getByRole("button", { name: "Run Trial" }).click();
@@ -429,6 +442,20 @@ try {
   check(
     (await recordedBadge.count()) === 1 && (await code("fill(input.campaign_name)").count()) === 1,
     "Chọn lại test case: khung Candidate nạp lại candidate mới nhất từ DB",
+  );
+
+  await win.getByRole("button", { name: "Từ chối" }).click();
+  await confirmBox.getByText("Từ chối candidate #3?").waitFor();
+  await shot("14-confirm-reject");
+  await confirmBox.getByRole("button", { name: "Từ chối" }).click();
+  await confirmBox.waitFor({ state: "detached" });
+  await win.locator(".panel", { hasText: "Revision #3" }).locator(".badge", { hasText: "REJECTED" }).waitFor();
+  await win.locator(".list li", { hasText: "v2" }).click();
+  await win.getByText("Revision #2").first().waitFor({ timeout: 5000 });
+  await win.getByRole("button", { name: "#3", exact: true }).click({ timeout: 5000 });
+  check(
+    (await win.locator(".badge", { hasText: "GHI THAO TÁC" }).isVisible()) && (await win.evaluate(() => document.hasFocus())),
+    "Từ chối qua hộp xác nhận trong app → mở version cũ → vẫn bấm được, cửa sổ giữ focus",
   );
 
   // ---------- history + settings ----------

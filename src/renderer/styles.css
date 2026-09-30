@@ -207,6 +207,7 @@ table.t tr.sel td { background: var(--cobalt-soft); }
 /* ---------- modal & toast ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(15, 20, 28, 0.45); display: grid; place-items: center; z-index: 40; padding: 30px; }
 .modal { background: #fff; border-radius: 8px; width: min(1100px, 100%); max-height: calc(100vh - 60px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }
+.modal.small { width: min(460px, 100%); }
 .modal > header { padding: 14px 18px; border-bottom: 1px solid var(--rule-2); display: flex; align-items: center; }
 .modal > header h2 { font-family: var(--display); font-size: 17px; margin: 0; flex: 1; }
 .modal > header, .modal > footer { flex: none; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { ImportPreview, InputField, InputSchema, InputValues, ParsedTestCase, ProjectTarget } from "../../shared/types";
 import { api, type ApiResult } from "../api";
-import { Badge, Modal, Panel, fmtTime, groupLabel, useAction, useToast } from "../components/ui";
+import { Badge, Modal, Panel, fmtTime, groupLabel, useAction, useConfirm, useToast } from "../components/ui";
 
 type CaseRow = ApiResult<"listTestCases">[number];
 type ProjectRow = ApiResult<"listProjects">[number];
@@ -499,6 +499,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
   const [groupFilter, setGroupFilter] = useState<string>(() => readFilter().group);
   const { run, busy } = useAction();
   const toast = useToast();
+  const ask = useConfirm();
 
   const load = useCallback(async () => {
     const [c, p] = await Promise.all([api.listTestCases(), api.listProjects()]);
@@ -642,7 +643,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
                       className="btn sm"
                       disabled={busy}
                       onClick={async () => {
-                        if (!confirm(`Xoá dự án trống "${filteredProject.name}"?`)) return;
+                        if (!(await ask(`Xoá dự án trống "${filteredProject.name}"?`, { okText: "Xoá", danger: true }))) return;
                         const ok = await run(() => api.deleteProject(filteredProject.project_id), "Đã xoá dự án");
                         if (ok) {
                           setProjectFilter(ALL);

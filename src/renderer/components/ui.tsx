@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { diffLines } from "diff";
 import type { Evidence, InputSchema, InputValues, StepLog } from "../../shared/types";
 import { api, artifactUrl } from "../api";
@@ -29,6 +29,62 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 
 export const useToast = () => useContext(ToastCtx);
+
+// ---------- confirm ----------
+// In-app replacement for window.confirm: after a native dialog closes, Electron on Windows can leave the
+// page without input focus, so clicks and typing stop working until the window is re-focused.
+type ConfirmOptions = { okText?: string; danger?: boolean };
+type ConfirmRequest = ConfirmOptions & { message: string; resolve: (ok: boolean) => void };
+const ConfirmCtx = createContext<(message: string, options?: ConfirmOptions) => Promise<boolean>>(async () => false);
+
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [req, setReq] = useState<ConfirmRequest | null>(null);
+  const ask = useCallback(
+    (message: string, options: ConfirmOptions = {}) =>
+      new Promise<boolean>((resolve) => {
+        setReq((prev) => {
+          prev?.resolve(false);
+          return { ...options, message, resolve };
+        });
+      }),
+    [],
+  );
+  const answer = useCallback(
+    (ok: boolean) =>
+      setReq((cur) => {
+        cur?.resolve(ok);
+        return null;
+      }),
+    [],
+  );
+  const cancel = useCallback(() => answer(false), [answer]);
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      {req && (
+        <Modal
+          title="Xác nhận"
+          onClose={cancel}
+          small
+          footer={
+            <>
+              <button className="btn" onClick={cancel}>
+                Huỷ
+              </button>
+              <button className={`btn ${req.danger ? "bad" : "primary"}`} autoFocus onClick={() => answer(true)}>
+                {req.okText ?? "Đồng ý"}
+              </button>
+            </>
+          }
+        >
+          <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{req.message}</p>
+        </Modal>
+      )}
+    </ConfirmCtx.Provider>
+  );
+}
+
+export const useConfirm = () => useContext(ConfirmCtx);
 
 /** Runs an async action, surfacing failures as a toast. Returns undefined on failure. */
 export function useAction() {
@@ -91,15 +147,37 @@ export function Panel({ title, actions, children, bodyClass = "body" }: { title:
   );
 }
 
-export function Modal({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+/** Open modals, innermost last; only the innermost one closes on Escape. */
+const openModals: object[] = [];
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  footer,
+  small,
+}: {
+  title: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  small?: boolean;
+}) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const token = {};
+    openModals.push(token);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && openModals.at(-1) === token && closeRef.current();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      openModals.splice(openModals.indexOf(token), 1);
+    };
+  }, []);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true">
+      <div className={`modal ${small ? "small" : ""}`} role="dialog" aria-modal="true">
         <header>
           <h2>{title}</h2>
           <button className="btn ghost" onClick={onClose} aria-label="Đóng">
