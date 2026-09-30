@@ -79,6 +79,16 @@ bỏ nhiễu (click trên thanh nổi, click lấy focus trước khi gõ, click
 "Ghi thao tác — cần xem lại" ở đầu script. Kết quả là candidate `origin = recorded` (nhãn GHI THAO TÁC), `DRAFT`, đi tiếp Trial/Chấp nhận như candidate AI.
 AI không tự chạy sau khi ghi; người dùng muốn sửa thì gửi prompt như bình thường (agent nhận candidate mới nhất làm ngữ cảnh).
 
+**Selector ổn định khi ghi** (`src/core/selectorStability.ts`, `src/main/recording/stableLocator.ts`): recorder chỉ dùng id/class khi phần tử không có
+test id, role + tên, label, placeholder hay text — thường là ô chọn của UI framework (Element Plus: `#el-id-4190-146`, đổi mỗi lần tải trang).
+`fragileReason` nhận ra id tự sinh (`el-id-*`, `:r1:`, `mui-*`, `radix-*`, `headlessui-*`, id có ≥ 3 chữ số liền…), class mã băm (`css-*`, CSS modules),
+class bố cục (Tailwind/Bootstrap), chuỗi CSS ≥ 2 dấu `>` và `nth=`. Ngay sau thao tác, app lấy đúng phần tử trên trang đang mở, liệt kê ứng viên
+(`data-testid`/`data-test`/`data-qa`/`data-cy`, `name`, `aria-label`, rồi "trong container có class ổn định gần nhất chứa label" + role/class/tag của
+phần tử, rồi class ổn định của chính nó) và giữ ứng viên đầu tiên khớp đúng 1 phần tử và đúng phần tử đó, ví dụ
+`page.locator('.el-form-item').filter({ has: page.getByText('Account', { exact: true }) }).getByRole('combobox')`. Mỗi selector tra một lần, tối đa 5 giây,
+chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
+`FRAGILE_SELECTOR` cho `locator('<css>')` dễ hỏng (cả script AI); prompt Training dặn tránh các mẫu này.
+
 **Tải file lên (biến kiểu `file`):** giá trị của biến là *tên* một file mẫu của dự án (`userData/fixtures/<project_id>/`, ngoài artifacts nên
 không bị dọn; xoá dự án thì xoá luôn). Trang Test Cases có khung "File mẫu của dự án" (thêm qua hộp chọn file của main process, tối đa 50 MB/file,
 tên được làm sạch thành tên file Windows hợp lệ; xoá có xác nhận). Form input (Training/Trial/Testing/Ghi thao tác, giá trị mẫu trong schema) chọn

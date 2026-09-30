@@ -384,6 +384,8 @@ try {
     await rp.getByLabel("Campaign Name").fill("Rec Campaign 01");
     await bar("next");
     await rp.getByLabel("Objective").selectOption("Traffic");
+    await rp.locator(".form-item", { hasText: "Owner" }).getByRole("combobox").click();
+    await rp.getByRole("option", { name: "Bob" }).click();
     await bar("next");
     await bar("shot");
     check((await banner.innerText()).includes("Bước 6/7"), "Thanh nổi: 📷 ở bước Chụp màn hình tự chuyển sang bước sau");
@@ -404,7 +406,7 @@ try {
   }
   await win.locator(".badge", { hasText: "GHI THAO TÁC" }).waitFor({ timeout: 30_000 });
   const recSession = await bridge("getRecordingState");
-  check(recSession.status === "SAVED" && recSession.action_count === 6 && recSession.shot_count === 2, `Ghi thao tác: đếm 6 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
+  check(recSession.status === "SAVED" && recSession.action_count === 8 && recSession.shot_count === 2, `Ghi thao tác: đếm 8 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
   const recorded = (await bridge("getScriptState", "TC_CAMP_001")).candidates[0];
   check(recorded.origin === "recorded" && recorded.revision_no === 3 && recorded.attempt_id === null, "Ghi thao tác: tạo candidate #3 có nhãn GHI THAO TÁC");
   check(
@@ -419,6 +421,12 @@ try {
     `Ghi thao tác: script dùng input.*, có 2 lệnh chụp và chú thích theo bước:\n${recorded.source}`,
   );
   check(!recorded.warnings.some((w) => w.startsWith("LỖI")), `Ghi thao tác: script đạt kiểm tra (${recorded.warnings.join(" | ") || "không cảnh báo"})`);
+  check(
+    !recorded.source.includes("el-id-") &&
+      recorded.source.includes(".locator('.form-item').filter({ has: page.getByText('Owner', { exact: true }) }).getByRole('combobox').click();") &&
+      !recorded.warnings.some((w) => w.includes("dễ hỏng")),
+    `Ghi thao tác: ô chọn có id tự sinh (#el-id-…) được thay bằng locator theo label "Owner":\n${recorded.source}`,
+  );
   check(!(await win.locator(".rec-banner").count()), "Ghi thao tác: kết thúc thì ẩn thanh trạng thái đang ghi");
   await shot("13b-recorded-candidate");
   await win.getByRole("button", { name: "Chạy Trial…" }).click();

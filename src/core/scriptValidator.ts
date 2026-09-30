@@ -1,5 +1,6 @@
 import ts from "typescript";
 import type { InputSchema, InputValues, ScriptValidation, ValidationIssue } from "../shared/types";
+import { cssFragility } from "./selectorStability";
 import { stepDirectives } from "./stepDirectives";
 
 export const ALLOWED_IMPORTS = new Set(["@playwright/test", "playwright", "playwright/test"]);
@@ -171,6 +172,17 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
         const literals = ts.isArrayLiteralExpression(first) ? first.elements : [first];
         if (literals.some((e) => ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e) || ts.isTemplateExpression(e))) {
           add("error", "HARDCODED_FILE", "File tải lên phải lấy từ input.<biến kiểu file> (runner truyền đường dẫn file mẫu của dự án), không ghi cố định đường dẫn", node);
+        }
+      }
+      if (method === "locator" && node.arguments[0] && (ts.isStringLiteral(node.arguments[0]) || ts.isNoSubstitutionTemplateLiteral(node.arguments[0]))) {
+        const reason = cssFragility(node.arguments[0].text);
+        if (reason) {
+          add(
+            "warning",
+            "FRAGILE_SELECTOR",
+            `Selector dễ hỏng khi trang tải lại hoặc đổi giao diện (${reason}); dùng getByRole/getByLabel/getByTestId hoặc khoanh theo label của ô`,
+            node,
+          );
         }
       }
       if (method === "screenshot") screenshotCalls++;

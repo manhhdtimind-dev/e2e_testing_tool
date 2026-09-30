@@ -3,7 +3,9 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright";
 import type { AgentProvider, CandidateRevision, Environment, InputValues, RecordingState, TestCase } from "../../shared/types";
-import { buildRecordedScript, sanitizeRecordedAction, TOOLBAR_TAG, type RecordingEvent } from "../../core/recording";
+import { buildRecordedScript, sanitizeRecordedAction, TOOLBAR_TAG, type RecordingEvent, type StableFix } from "../../core/recording";
+import { fragileReason } from "../../core/selectorStability";
+import { findStableLocator } from "./stableLocator";
 import { stepDirectives, type StepDirectives } from "../../core/stepDirectives";
 import type { AppContext } from "../context";
 import { artifactDir, toArtifactRef } from "../paths";
@@ -43,6 +45,22 @@ interface Session {
    * but always before a toolbar button command; the toolbar's "hello" on page load may come before that report.
    */
   lastUrl: WeakMap<Page, string>;
+  /** Fragile recorder selector → stable replacement looked up on the live page right after the action. */
+  stable: Map<string, Promise<StableFix>>;
+}
+
+const STABLE_LOOKUP_MS = 5000;
+
+function trackStability(s: Session, page: Page, selector: string | undefined) {
+  if (!selector || s.stable.has(selector)) return;
+  const reason = fragileReason(selector);
+  if (!reason) return;
+  const lookup = findStableLocator(page, selector).catch(() => null);
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), STABLE_LOOKUP_MS));
+  s.stable.set(
+    selector,
+    Promise.race([lookup, timeout]).then((locator) => ({ reason, locator })),
+  );
 }
 
 let current: Session | null = null;
@@ -142,6 +160,7 @@ export async function startRecording(
     context: null,
     events: [{ kind: "step", t: Date.now(), step: 1 }],
     lastUrl: new WeakMap(),
+    stable: new Map(),
   };
   current = s;
   emit(ctx, s);
@@ -172,6 +191,7 @@ export async function startRecording(
           if (a.selector?.includes(TOOLBAR_TAG) || code.includes(TOOLBAR_TAG)) return;
           s.events.push({ kind: "action", t: Date.now(), page: pageIndex(p), url: s.lastUrl.get(p) ?? pageUrl(p), action: a, code });
           s.lastUrl.set(p, pageUrl(p));
+          trackStability(s, p, a.selector);
           if (a.name !== "openPage" && a.name !== "closePage") s.state.action_count++;
           emit(ctx, s);
           broadcast(s);
@@ -181,7 +201,9 @@ export async function startRecording(
           for (let i = s.events.length - 1; i >= 0; i--) {
             const e = s.events[i];
             if (e.kind === "action") {
-              s.events[i] = { ...e, page: pageIndex(p), action: sanitizeRecordedAction(action), code };
+              const a = sanitizeRecordedAction(action);
+              s.events[i] = { ...e, page: pageIndex(p), action: a, code };
+              trackStability(s, p, a.selector);
               break;
             }
           }
@@ -231,7 +253,7 @@ async function onToolbar(ctx: AppContext, s: Session, page: Page, cmd: { type?: 
   return toolbarState(s);
 }
 
-function saveCandidate(ctx: AppContext, s: Session, closeAtEnd: boolean): CandidateRevision {
+function saveCandidate(ctx: AppContext, s: Session, closeAtEnd: boolean, stable: Record<string, StableFix>): CandidateRevision {
   const secretNames = new Set(s.tc.input_schema.fields.filter((f) => f.secret).map((f) => f.name));
   const secrets = Object.fromEntries(Object.entries(environmentSecrets(ctx, s.env.environment_id)).filter(([k]) => secretNames.has(k)));
   const build = buildRecordedScript(s.events, {
@@ -241,6 +263,7 @@ function saveCandidate(ctx: AppContext, s: Session, closeAtEnd: boolean): Candid
     secrets,
     steps: s.tc.steps,
     closeAtEnd,
+    stable,
   });
   if (!build.actionCount) throw new AppError("Chưa ghi được thao tác nào nên không tạo candidate.");
   if (!ctx.repo.testCases.get(s.tc.test_id)) throw new AppError("Test case đã bị xoá trong lúc ghi.");
@@ -294,9 +317,10 @@ export async function finishRecording(ctx: AppContext, sessionId?: string): Prom
   emit(ctx, s);
   const firstClose = s.directives.close[0];
   const closeAtEnd = firstClose !== undefined && s.state.step >= firstClose;
+  const stable = Object.fromEntries(await Promise.all([...s.stable].map(async ([selector, fix]) => [selector, await fix] as const)));
   await s.browser?.close().catch(() => undefined);
   try {
-    const c = saveCandidate(ctx, s, closeAtEnd);
+    const c = saveCandidate(ctx, s, closeAtEnd, stable);
     s.state.status = "SAVED";
     s.state.candidate_id = c.candidate_id;
     s.state.revision_no = c.revision_no;
@@ -306,6 +330,7 @@ export async function finishRecording(ctx: AppContext, sessionId?: string): Prom
     ctx.repo.audit("recording.failed", "test_case", s.tc.test_id, { session_id: s.state.session_id, error: s.state.error });
   }
   s.events = [];
+  s.stable.clear();
   emit(ctx, s);
   return { ...s.state };
 }
@@ -317,6 +342,7 @@ export async function cancelRecording(ctx: AppContext, sessionId?: string): Prom
   if (s.state.status !== "RECORDING" && s.state.status !== "STARTING") return { ...s.state };
   s.state.status = "CANCELLED";
   s.events = [];
+  s.stable.clear();
   await s.browser?.close().catch(() => undefined);
   ctx.repo.audit("recording.cancel", "test_case", s.tc.test_id, { session_id: s.state.session_id });
   emit(ctx, s);
@@ -329,5 +355,6 @@ export async function abortRecording(): Promise<void> {
   if (!s || !ACTIVE.has(s.state.status)) return;
   s.state.status = "CANCELLED";
   s.events = [];
+  s.stable.clear();
   await s.browser?.close().catch(() => undefined);
 }

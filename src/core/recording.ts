@@ -1,6 +1,7 @@
 import ts from "typescript";
 import type { InputField, InputSchema, InputValues } from "../shared/types";
 import { fieldTsType } from "./inputValidation";
+import { replaceLocator } from "./selectorStability";
 import { fold, stepDirectives } from "./stepDirectives";
 
 /** The subset of a Playwright recorder action the app keeps (never the aria snapshot: it holds typed values). */
@@ -30,6 +31,13 @@ export interface RecordingBuildOptions {
   steps: string[];
   /** Append `await page.close()` (the user reached a "close the browser" step). */
   closeAtEnd: boolean;
+  /** Recorder selectors that looked fragile, with the stable locator found on the page (null = none). */
+  stable?: Record<string, StableFix>;
+}
+
+export interface StableFix {
+  reason: string;
+  locator: string | null;
 }
 
 export interface RecordingBuild {
@@ -294,12 +302,27 @@ function uploadStatements(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx
   ];
 }
 
-function statementsFor(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): string[] {
-  if (e.page > 0) {
+/** Swaps a fragile recorder locator for the stable one found while recording, or flags it for a manual fix. */
+function withStableLocator(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): { event: typeof e; flag: string | null } {
+  const fix = e.action.selector ? c.opts.stable?.[e.action.selector] : undefined;
+  if (!fix) return { event: e, flag: null };
+  const code = fix.locator ? replaceLocator(e.code, fix.locator) : null;
+  if (code) return { event: { ...e, code }, flag: null };
+  c.notes.add(`Phần tử ${describeTarget(e.action.selector)}: selector dễ đổi (${fix.reason}) và không tìm được selector ổn định thay thế; sửa tay hoặc Training lại bước này.`);
+  return { event: e, flag: `// Cần sửa: selector dễ đổi (${fix.reason})` };
+}
+
+function statementsFor(action: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): string[] {
+  if (action.page > 0) {
     c.notes.add("Có thao tác trên tab/cửa sổ khác lúc ghi; các thao tác đó không được đưa vào script (script chỉ chạy trên một tab).");
     return [];
   }
-  if (isUpload(e.action)) return uploadStatements(e, c);
+  const { event: e, flag } = withStableLocator(action, c);
+  const out = isUpload(e.action) ? uploadStatements(e, c) : recordedStatements(e, c);
+  return flag && out.length ? [flag, ...out] : out;
+}
+
+function recordedStatements(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): string[] {
   const sf = ts.createSourceFile("recorded.ts", e.code, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   const out: string[] = [];
   for (const stmt of sf.statements) {

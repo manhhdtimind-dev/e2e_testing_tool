@@ -42,6 +42,28 @@ async function readUpload(req) {
   return { name: Buffer.from(m[1], "latin1").toString("utf8"), size: (end < 0 ? raw.length : end) - start };
 }
 
+/**
+ * Element Plus–style select: the combobox has no accessible name and an id generated per page load,
+ * so the recorder falls back to `#el-id-…` (exercises the stable-locator lookup of the recording).
+ */
+function ownerSelect() {
+  const id = `el-id-${1000 + Math.floor(Math.random() * 9000)}-${100 + Math.floor(Math.random() * 900)}`;
+  return `<div class="form-item"><label class="form-item__label">Owner</label><div class="form-item__content"><div class="flex w-full">
+      <div class="select__wrapper"><input id="${id}" class="select__input" role="combobox" aria-expanded="false" readonly autocomplete="off"><span class="select__placeholder">Select owner</span></div>
+      <ul class="select__menu" role="listbox" hidden><li role="option">Alice</li><li role="option">Bob</li></ul>
+      <input type="hidden" name="owner"></div></div></div>
+      <script>(() => {
+        const box = document.getElementById(${JSON.stringify(id)}), menu = document.querySelector(".select__menu");
+        box.addEventListener("click", () => { menu.hidden = !menu.hidden; box.setAttribute("aria-expanded", String(!menu.hidden)); });
+        menu.addEventListener("click", (e) => {
+          const li = e.target.closest("li"); if (!li) return;
+          document.querySelector("input[name=owner]").value = li.textContent;
+          document.querySelector(".select__placeholder").textContent = li.textContent;
+          menu.hidden = true; box.setAttribute("aria-expanded", "false");
+        });
+      })();</script>`;
+}
+
 function send(res, status, html, headers = {}) {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8", ...headers });
   res.end(html);
@@ -95,6 +117,7 @@ const server = createServer(async (req, res) => {
     return send(res, 200, layout("Create Campaign", `<h1>Create Campaign</h1><form method="post" action="/campaigns/new">
       <label for="name">Campaign Name</label><input id="name" name="name" required>
       <label for="obj">Objective</label><select id="obj" name="objective"><option>Sales</option><option>Awareness</option><option>Traffic</option></select>
+      ${ownerSelect()}
       <button type="submit">${broken ? "Lưu lại" : "Save"}</button></form>`));
   }
   if (url.pathname === "/campaigns/new" && req.method === "POST") {

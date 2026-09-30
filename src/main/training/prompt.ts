@@ -124,6 +124,7 @@ export async function run(page: Page, input: Input): Promise<void> {
    - Every test-data value must come from \`input.<field>\`. Never hardcode sample values or secrets.
    - Use relative URLs with page.goto (the runner sets baseURL to the environment base URL).
    - Prefer getByRole / getByLabel / getByTestId / getByText locators taken from the snapshot or from the Playwright code the tools return. Never use mouse coordinates or click positions.
+   - Never use ids generated per page load (e.g. \`#el-id-4190-146\`, \`#:r1:\`, \`#mui-12\`), hashed classes (\`.css-1x2y3z\`), layout classes (\`.flex.w-full\`), deep CSS chains or \`.nth()\` by position — they change between loads. For a control without an accessible name, scope it by the label of its form item: \`page.locator('.el-form-item').filter({ has: page.getByText('Account', { exact: true }) }).getByRole('combobox')\`.
    - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts. Never call page.pause() — the runner is unattended.
    - Do not add waitForTimeout or other delays to slow the run down: the runner replays every action at a speed a person can follow by itself.
    - Do not log in inside the script (the runner has its own authenticated session). Only import from "@playwright/test". No fs, process, require, eval or network calls.
