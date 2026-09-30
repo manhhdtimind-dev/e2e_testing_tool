@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: StoredSettings = {
   training_timeout_min: 15,
   training_max_actions: 80,
   training_max_repairs: 2,
+  training_project_refs: true,
   run_timeout_sec: 180,
   max_concurrent_runs: 2,
   runner_browser: "chrome",
@@ -39,6 +40,7 @@ export function updateSettings(repo: Repo, secrets: SecretStore, patch: Partial<
   next.training_timeout_min = clamp(next.training_timeout_min, 1, 120);
   next.training_max_actions = clamp(next.training_max_actions, 5, 500);
   next.training_max_repairs = clamp(next.training_max_repairs, 0, 5);
+  next.training_project_refs = Boolean(next.training_project_refs);
   next.run_timeout_sec = clamp(next.run_timeout_sec, 10, 3600);
   next.max_concurrent_runs = clamp(next.max_concurrent_runs, 1, 8);
   next.runner_slow_mo_ms = clamp(next.runner_slow_mo_ms, 0, 3000);

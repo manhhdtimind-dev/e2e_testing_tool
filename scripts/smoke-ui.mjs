@@ -469,6 +469,11 @@ try {
   await shot("10-audit");
   await nav("Cài đặt");
   await win.getByText("Kiểm tra tích hợp agent").waitFor();
+  check(
+    (await bridge("getSettings")).training_project_refs === true &&
+      (await win.locator("label.field", { hasText: "Dùng script đã duyệt cùng dự án làm tham chiếu" }).locator("input[type=checkbox]").isChecked()),
+    "Cài đặt: tham chiếu script đã duyệt cùng dự án bật mặc định",
+  );
   await shot("11-settings");
 
   // ---------- delete an approved test case with its history ----------

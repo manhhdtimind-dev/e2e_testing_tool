@@ -286,6 +286,8 @@ export interface Settings {
   training_timeout_min: number;
   training_max_actions: number;
   training_max_repairs: number;
+  /** Give Training the approved scripts of the same project; with runner auth, draft first and verify with the runner. */
+  training_project_refs: boolean;
   run_timeout_sec: number;
   max_concurrent_runs: number;
   runner_browser: "chrome" | "chromium" | "msedge";

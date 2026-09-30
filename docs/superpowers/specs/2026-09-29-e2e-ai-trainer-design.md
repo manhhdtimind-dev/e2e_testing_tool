@@ -54,6 +54,14 @@ tool event vào action log → đọc `candidate.ts` → validate AST (hàm `run
 không hardcode input mẫu/secret, không toạ độ chuột, không import/API ngoài danh sách cho phép) → nếu lỗi gửi lại tối đa 2
 lượt sửa trong cùng thread → tạo candidate revision bất biến (`source_hash` sha256). Giới hạn thời gian và số browser action.
 
+**Tham chiếu theo dự án (Cài đặt `training_project_refs`, mặc định bật):** mỗi lượt Training ghi lại `workspaces/<script_id>/reference/`
+từ version APPROVED mới nhất của các test case khác cùng dự án (tối đa 6 script / 60 KB, xếp theo độ giống của tiêu đề + steps, cùng nhóm được cộng điểm;
+`src/core/projectReferences.ts`), kèm `README.md` liệt kê steps, trang (`goto`/`waitForURL`) và locator đọc từ AST. Prompt dặn agent dùng lại
+điều hướng/locator, không chép dữ liệu. Khi script bắt đầu từ đầu (chưa có candidate hoặc Training lại từ đầu), environment có runner auth và đủ secret
+⇒ **soạn nháp**: agent viết thẳng phần đã có trong tham chiếu, chỉ dùng MCP cho trang chưa có; app chạy `candidate.ts` bằng runner (ẩn, không slowMo,
+input mẫu + secret của environment, artifact trong thư mục attempt), lỗi thì gửi log cho agent sửa trong cùng thread (tối đa 2 vòng, `draftVerify.ts`).
+Candidate là đúng source của lần chạy cuối và lần chạy đó được lưu thành Trial của candidate (`trial.training_verify`).
+
 **Ghi thao tác (không dùng AI):** người dùng đã duyệt lệch khỏi mục "human takeover ngoài phạm vi" của yêu cầu.
 Nút "Ghi thao tác…" ở Training mở modal nhập input mẫu. Điều kiện: environment có runner auth, script không đang Training, và chỉ một phiên ghi tại một thời điểm.
 App mở Chrome riêng bằng Playwright, dùng storage state runner auth của environment (không copy cookie từ profile Training), bật recorder của Playwright

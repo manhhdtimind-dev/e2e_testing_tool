@@ -59,17 +59,17 @@ function resolveInput(ctx: AppContext, tc: TestCase, env: Environment, input: In
 
 async function execute(
   ctx: AppContext,
-  kind: "trials" | "runs",
-  id: string,
+  dir: string,
   source: string,
   env: Environment,
   runtime: Record<string, string | number | boolean>,
   secretValues: string[],
   onStep: (count: number) => void,
+  opts: { fast?: boolean } = {},
 ): Promise<{ result: RunnerResult; evidence: Evidence }> {
   const settings = ctx.settings();
   setRunnerConcurrency(settings.max_concurrent_runs);
-  const dir = artifactDir(kind, id);
+  const headless = opts.fast || settings.runner_headless;
   writeFileSync(join(dir, "source.ts"), source);
   const compiledPath = join(dir, "script.cjs");
   writeFileSync(compiledPath, transpileScript(source));
@@ -84,13 +84,13 @@ async function execute(
       baseUrl: env.base_url,
       allowedDomains: env.allowed_domains,
       browser: settings.runner_browser,
-      headless: settings.runner_headless,
+      headless,
       timeoutMs: settings.run_timeout_sec * 1000,
       actionTimeoutMs: 15_000,
       navigationTimeoutMs: 30_000,
       traceOnSuccess: false,
-      keepOpen: !settings.runner_headless && settings.runner_keep_open,
-      slowMoMs: settings.runner_headless ? 0 : settings.runner_slow_mo_ms,
+      keepOpen: !headless && settings.runner_keep_open,
+      slowMoMs: headless ? 0 : settings.runner_slow_mo_ms,
     },
     storageState,
     { fsRestricted: settings.runner_fs_restricted, onStep: () => onStep(++steps) },
@@ -154,7 +154,7 @@ export function startTrial(ctx: AppContext, candidateId: string, environmentId: 
     };
     update({ status: "RUNNING", started_at: now() });
     try {
-      const { result, evidence } = await execute(ctx, "trials", trial.trial_id, candidate.source, env, resolved.runtime, resolved.secretValues, (n) =>
+      const { result, evidence } = await execute(ctx, artifactDir("trials", trial.trial_id), candidate.source, env, resolved.runtime, resolved.secretValues, (n) =>
         ctx.emit("trial:update", { ...trial, step_count: n }),
       );
       update({
@@ -289,7 +289,7 @@ export function startTestRun(ctx: AppContext, testId: string, versionNo: number,
     };
     update({ execution_status: "RUNNING", started_at: now() });
     try {
-      const { result, evidence } = await execute(ctx, "runs", run.run_id, version.source, env, resolved.runtime, resolved.secretValues, (n) =>
+      const { result, evidence } = await execute(ctx, artifactDir("runs", run.run_id), version.source, env, resolved.runtime, resolved.secretValues, (n) =>
         ctx.emit("run:update", { ...run, step_count: n }),
       );
       if (result.ok) {
@@ -323,6 +323,55 @@ export function reviewTestRun(ctx: AppContext, runId: string, result: Exclude<Re
   const updated = ctx.repo.testRuns.get(runId)!;
   ctx.emit("run:update", updated);
   return updated;
+}
+
+// ---------------- Training draft verification ----------------
+
+export interface VerificationInput {
+  runtime: Record<string, string | number | boolean>;
+  snapshot: InputValues;
+  secretValues: string[];
+}
+
+/** Input for the app's own run of a Training draft; null + reason when the environment cannot run it. */
+export function verificationInput(ctx: AppContext, tc: TestCase, env: Environment, sample: InputValues): { input: VerificationInput | null; reason: string } {
+  if (!runnerAuthStatus(ctx, env)) return { input: null, reason: `environment "${env.name}" chưa có runner auth` };
+  const resolved = resolveInput(ctx, tc, env, sample);
+  if (resolved.issues.length) return { input: null, reason: resolved.issues.join("; ") };
+  return { input: { runtime: resolved.runtime, snapshot: resolved.snapshot, secretValues: resolved.secretValues }, reason: "" };
+}
+
+/** Headless, full-speed run of a draft; artifacts go to `dir` (inside the Training attempt). */
+export function runVerification(ctx: AppContext, dir: string, source: string, env: Environment, input: VerificationInput) {
+  return execute(ctx, dir, source, env, input.runtime, input.secretValues, () => undefined, { fast: true });
+}
+
+/** Records the final verification run as a trial of the candidate built from exactly that source. */
+export function recordVerificationTrial(
+  ctx: AppContext,
+  candidate: CandidateRevision,
+  env: Environment,
+  input: VerificationInput,
+  run: { result: RunnerResult; evidence: Evidence; started_at: string; finished_at: string },
+): TrialRun {
+  const trial: TrialRun = {
+    trial_id: newId("trial"),
+    candidate_id: candidate.candidate_id,
+    source_hash: candidate.source_hash,
+    environment_id: env.environment_id,
+    input_snapshot: input.snapshot,
+    status: run.result.ok ? "PASSED" : run.result.error_code === "AUTH_REQUIRED" ? "AUTH_REQUIRED" : "FAILED",
+    error_code: run.result.error_code,
+    error_message: run.result.error_message,
+    evidence_refs: run.evidence,
+    created_at: run.started_at,
+    started_at: run.started_at,
+    finished_at: run.finished_at,
+  };
+  ctx.repo.trials.insert(trial);
+  ctx.repo.audit("trial.training_verify", "trial", trial.trial_id, { candidate_id: candidate.candidate_id, source_hash: candidate.source_hash, status: trial.status });
+  ctx.emit("trial:update", trial);
+  return trial;
 }
 
 export function runnerAuthStatus(ctx: AppContext, env: Environment): boolean {

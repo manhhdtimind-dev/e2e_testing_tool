@@ -5,8 +5,10 @@ import type {
   AttemptKind,
   CandidateRevision,
   Environment,
+  Evidence,
   InputValues,
   ProviderThread,
+  RunnerResult,
   Script,
   ScriptValidation,
   TestCase,
@@ -27,8 +29,26 @@ import type { AgentAdapter, AgentTurnResult } from "./adapters/types";
 import { ThreadUnavailableError } from "./adapters/types";
 import { codexAdapter } from "./adapters/codex";
 import { cursorAdapter } from "./adapters/cursor";
-import { CANDIDATE_FILE, bootstrapPrompt, initialPrompt, parseVerdict, repairPrompt, revisePrompt, type RunContext } from "./prompt";
+import {
+  CANDIDATE_FILE,
+  bootstrapPrompt,
+  initialPrompt,
+  parseVerdict,
+  projectReferencesBlock,
+  repairPrompt,
+  revisePrompt,
+  verifyFailPrompt,
+  type RunContext,
+} from "./prompt";
 import { redactText } from "../../core/inputValidation";
+import { writeProjectReferences } from "./projectContext";
+import { verifyDraft, type VerifyRun } from "./draftVerify";
+import { recordVerificationTrial, runVerification, verificationInput, type VerificationInput } from "../services/execution";
+
+/** Extra agent turns allowed after the app's verification run of a draft fails. */
+const VERIFY_FIX_ROUNDS = 2;
+
+type VerificationData = { result: RunnerResult; evidence: Evidence; started_at: string; finished_at: string };
 
 const adapters: Record<AgentProvider, AgentAdapter> = { codex: codexAdapter, cursor: cursorAdapter };
 
@@ -356,13 +376,27 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     if (latest && !retrain) writeFileSync(candidatePath, latest.source);
     else rmSync(candidatePath, { force: true });
 
+    const refs = writeProjectReferences(ctx, tc, workspace);
+    const fromScratch = retrain || !latest;
+    const verifyPlan = refs.length && fromScratch ? verificationInput(ctx, tc, env, attempt.sample_input) : null;
+    const draftMode = !!verifyPlan?.input;
+    const projectBlock = refs.length ? projectReferencesBlock({ testIds: refs.map((r) => r.test_id), draft: draftMode }) : "";
+    if (refs.length) {
+      const mode = draftMode
+        ? " Chế độ soạn nháp: agent viết trước phần đã có trong tham chiếu, app chạy ẩn để kiểm chứng."
+        : verifyPlan
+          ? ` Không kiểm chứng tự động: ${verifyPlan.reason}.`
+          : "";
+      emitEvent({ ts: now(), kind: "status", text: `Tham chiếu dự án: ${refs.length} script đã duyệt (${refs.map((r) => r.test_id).join(", ")}).${mode}` });
+    }
+
     const lastRun = runContextFor(ctx, attempt.context_ref, latest);
     const priorPrompts = ctx.repo.attempts
       .where("script_id = ? AND attempt_id != ? ORDER BY created_at", script.script_id, attempt.attempt_id)
       .map((a) => a.prompt)
       .filter(Boolean);
     const buildPrompt = (fresh: boolean, reason: string) => {
-      if (retrain) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt);
+      if (retrain) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, projectBlock);
       if (fresh && (latest || priorPrompts.length)) {
         return bootstrapPrompt({
           tc,
@@ -374,10 +408,19 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
           lastRun,
           userPrompt: attempt.prompt,
           reason,
+          extra: projectBlock,
         });
       }
-      if (fresh) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt);
-      return revisePrompt({ userPrompt: attempt.prompt, revisionNo: latest?.revision_no ?? null, sample: attempt.sample_input, tc, lastRun, maxActions: settings.training_max_actions });
+      if (fresh) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, projectBlock);
+      return revisePrompt({
+        userPrompt: attempt.prompt,
+        revisionNo: latest?.revision_no ?? null,
+        sample: attempt.sample_input,
+        tc,
+        lastRun,
+        maxActions: settings.training_max_actions,
+        extra: projectBlock,
+      });
     };
 
     const adapter = adapters[attempt.agent];
@@ -448,6 +491,68 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       source = existsSync(candidatePath) ? readFileSync(candidatePath, "utf8") : null;
       validation = source ? validationOf(source) : null;
     }
+    const readCandidate = () => (existsSync(candidatePath) ? readFileSync(candidatePath, "utf8") : null);
+    /** Current candidate.ts after asking the agent to fix validation errors; null when it stays invalid or a turn fails. */
+    const repairedSource = async (): Promise<string | null> => {
+      let src = readCandidate();
+      let v = src ? validationOf(src) : null;
+      for (let i = 0; src && v && !v.ok && i < settings.training_max_repairs; i++) {
+        const r = await turn(repairPrompt(v.issues));
+        if (r.status !== "completed" || controller.signal.aborted) return null;
+        src = readCandidate();
+        v = src ? validationOf(src) : null;
+      }
+      return src && v?.ok ? src : null;
+    };
+
+    let verification: { input: VerificationInput; run: VerifyRun<VerificationData> } | null = null;
+    if (draftMode && source && validation?.ok && verdict.status !== "blocked") {
+      const input = verifyPlan!.input!;
+      const outcome = await verifyDraft<VerificationData>(source, {
+        maxFixRounds: VERIFY_FIX_ROUNDS,
+        aborted: () => controller.signal.aborted,
+        status: (text) => emitEvent({ ts: now(), kind: "status", text }),
+        run: async (src, round) => {
+          const started_at = now();
+          const { result, evidence } = await runVerification(ctx, join(dir, `verify-${round}`), src, env, input);
+          return {
+            ok: result.ok,
+            authRequired: result.error_code === "AUTH_REQUIRED",
+            summary: `${result.error_code ?? "FAILED"} — ${(result.error_message ?? "").split("\n")[0].slice(0, 200)}`,
+            data: { result, evidence, started_at, finished_at: now() },
+          };
+        },
+        fix: async (failed, round) => {
+          const r = await turn(
+            verifyFailPrompt({
+              tc,
+              round,
+              maxActions: settings.training_max_actions,
+              run: {
+                label: `Verification run ${round} of ${CANDIDATE_FILE}`,
+                status: "FAILED",
+                error_code: failed.data.result.error_code,
+                error_message: failed.data.result.error_message,
+                steps: readSteps(failed.data.evidence.steps),
+                input: input.snapshot,
+              },
+            }),
+          );
+          if (r.status !== "completed" || controller.signal.aborted) return null;
+          const fixVerdict = parseVerdict(r.finalText).status;
+          if (fixVerdict === "blocked" || fixVerdict === "auth_required") return null;
+          return repairedSource();
+        },
+      });
+      if (controller.signal.aborted) {
+        updateAttempt(ctx, attempt, { status: "FAILED", error: abortReason() });
+        return;
+      }
+      source = outcome.source;
+      writeFileSync(candidatePath, source);
+      validation = validationOf(source);
+      verification = { input, run: outcome.last };
+    }
     writeFileSync(join(dir, "validation.json"), JSON.stringify(validation, null, 2));
 
     if (!source) {
@@ -493,6 +598,10 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       agent: attempt.agent,
       attempt_id: attempt.attempt_id,
     });
+    if (verification) {
+      const trial = recordVerificationTrial(ctx, candidate, env, verification.input, verification.run.data);
+      emitEvent({ ts: now(), kind: "status", text: `Đã lưu lần chạy kiểm chứng cuối làm Trial ${trial.status} của candidate #${candidate.revision_no}.` });
+    }
     updateAttempt(ctx, attempt, {
       status: verdict.status === "blocked" ? "FAILED" : "COMPLETED",
       candidate_id: candidate.candidate_id,

@@ -92,6 +92,13 @@ export function SettingsPage() {
             <Field label="Số lần yêu cầu agent sửa khi candidate lỗi">
               <input type="number" value={settings.training_max_repairs} onChange={num("training_max_repairs")} />
             </Field>
+            <label className="field">
+              <span>Dùng script đã duyệt cùng dự án làm tham chiếu</span>
+              <input type="checkbox" checked={settings.training_project_refs} onChange={(e) => setSettings({ ...settings, training_project_refs: e.target.checked })} />
+              <em className="hint">
+                Agent dùng lại trang, locator của các version APPROVED khác trong dự án. Khi environment có runner auth, agent soạn nháp trước và app chạy ẩn để kiểm chứng (tối đa 2 lần sửa), lần chạy cuối được lưu làm Trial của candidate.
+              </em>
+            </label>
             <Field label="Timeout mỗi Trial/Test run (giây)">
               <input type="number" value={settings.run_timeout_sec} onChange={num("run_timeout_sec")} />
             </Field>

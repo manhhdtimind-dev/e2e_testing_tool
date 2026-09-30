@@ -113,14 +113,45 @@ ${ctx.error_message ? `- error:\n\`\`\`\n${ctx.error_message.slice(0, 3000)}\n\`
 ${steps ? `- executed steps (runner log):\n${steps}` : "- no steps were executed"}`;
 }
 
-export function initialPrompt(tc: TestCase, env: Environment, sample: InputValues, maxActions: number, userPrompt: string): string {
+export const REFERENCE_DIR = "reference";
+
+/** Approved scripts of the same project copied into the workspace; in draft mode the app verifies the script itself. */
+export function projectReferencesBlock(opts: { testIds: string[]; draft: boolean }): string {
+  const base = `## Approved scripts from the same project (\`${REFERENCE_DIR}/\`)
+\`${REFERENCE_DIR}/\` in the working directory holds ${opts.testIds.length} approved script(s) of other test cases in this project (${opts.testIds.join(", ")}), written for this site and accepted by a person. Read \`${REFERENCE_DIR}/README.md\` first: it lists their steps, pages and locators.
+- Reuse their navigation, locators and waiting patterns wherever the manual steps touch the same pages.
+- Do not copy their test data: values still come only from input.<field> of THIS test case. Do not edit files in \`${REFERENCE_DIR}/\` and do not import them.`;
+  if (!opts.draft) return base;
+  return `${base}
+
+### Draft first — the app verifies (this overrides "How to work" steps 2 and 4)
+Right after your turn the app runs \`${CANDIDATE_FILE}\` itself (headless runner, the sample input, an authenticated session) and sends you the exact failure if it does not pass.
+- For steps whose pages and elements the references already cover, write the code directly — no browser actions.
+- Use the Playwright MCP tools only for steps or pages the references do not cover, or to check an element you are unsure about.
+- If the references cover every step, write \`${CANDIDATE_FILE}\` without any browser action and skip the final browser_take_screenshot.`;
+}
+
+/** Sent after the app's own run of a draft failed. */
+export function verifyFailPrompt(opts: { tc: TestCase; run: RunContext; round: number; maxActions: number }): string {
+  return `The app ran \`${CANDIDATE_FILE}\` on the site (verification run ${opts.round}: headless runner, the sample input, authenticated session) and it did not pass.
+${UNATTENDED_NOTE}
+
+${runContextBlock(opts.run)}
+
+Find the cause with the Playwright MCP tools (open the page where it failed and read its snapshot; the run may have created data, so do not rely on the page being unchanged), then fix \`${CANDIDATE_FILE}\` in place. Budget ${opts.maxActions} browser actions. Keep all script rules (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits, only @playwright/test imports, // Step N comments).
+
+${directivesBlock(opts.tc)}
+Finish with ONE line of JSON: {"status":"done"|"blocked"|"auth_required","reason":"...","steps_done":[...]}`;
+}
+
+export function initialPrompt(tc: TestCase, env: Environment, sample: InputValues, maxActions: number, userPrompt: string, extra = ""): string {
   return `You are training an automated web E2E test script with Playwright.
 ${UNATTENDED_NOTE}
 
 ${testCaseBlock(tc, env, sample)}
 
 ${rulesBlock(tc, maxActions)}
-${userPrompt.trim() ? `\n## Additional instructions from the user\n${userPrompt.trim()}` : ""}`;
+${extra ? `\n${extra}\n` : ""}${userPrompt.trim() ? `\n## Additional instructions from the user\n${userPrompt.trim()}` : ""}`;
 }
 
 export function revisePrompt(opts: {
@@ -130,13 +161,14 @@ export function revisePrompt(opts: {
   tc: TestCase;
   lastRun: RunContext | null;
   maxActions: number;
+  extra?: string;
 }): string {
   return `Revise the test script.
 ${UNATTENDED_NOTE}
 
 ${opts.revisionNo ? `\`${CANDIDATE_FILE}\` in the working directory contains candidate revision #${opts.revisionNo} (the latest saved version). Edit it in place.` : `\`${CANDIDATE_FILE}\` does not exist yet; create it.`}
 Sample input for this turn: ${JSON.stringify(opts.sample)}
-${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}\n` : ""}
+${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}\n` : ""}${opts.extra ? `\n${opts.extra}\n` : ""}
 ## User request
 ${opts.userPrompt.trim() || "Fix the problems above so the script runs end-to-end."}
 
@@ -156,6 +188,7 @@ export function bootstrapPrompt(opts: {
   lastRun: RunContext | null;
   userPrompt: string;
   reason: string;
+  extra?: string;
 }): string {
   const history = opts.promptHistory.slice(-10).map((p, i) => `  ${i + 1}. ${p.replace(/\s+/g, " ").slice(0, 400)}`).join("\n");
   return `You are continuing the training of an automated web E2E test script with Playwright. ${opts.reason}
@@ -169,7 +202,7 @@ ${history ? `- earlier user prompts (oldest first):\n${history}` : "- no earlier
 ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}` : ""}
 
 ${rulesBlock(opts.tc, opts.maxActions)}
-
+${opts.extra ? `\n${opts.extra}\n` : ""}
 ## User request for this turn
 ${opts.userPrompt.trim() || "Review the saved script against the manual steps, verify it on the site and improve it where needed."}`;
 }
