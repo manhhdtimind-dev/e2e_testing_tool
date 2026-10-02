@@ -105,7 +105,10 @@ origin là do app ⇒ `waitForURL` với đoạn id trong đường dẫn thay b
 (MutationObserver) và thời điểm click/phím trước đó của người dùng; phần tử của thao tác xuất hiện ≥ 3 giây sau thao tác trước (danh sách tải dần,
 thư viện ảnh đo kích thước từng ảnh…) ⇒ chèn `await <locator>.waitFor({ timeout })` trước thao tác, timeout = 3× thời gian đó, trong khoảng 30 giây–2 phút
 (timeout mặc định mỗi action của runner là 15 giây). Giá trị input mẫu nằm trong text dài chỉ được thay bằng `input.<field>` khi đứng thành từ riêng
-(`sampleWordPattern`: "Image" trong "Format: Image", không trong "…-MedImage-1.png"); validator `HARDCODED_INPUT` dùng cùng luật. Kết quả tra gắn vào từng thao tác (không cache theo chuỗi selector), tối đa 5 giây, chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
+(`sampleWordPattern`: "Image" trong "Format: Image", không trong "…-MedImage-1.png"); validator `HARDCODED_INPUT` dùng cùng luật. Locator chọn theo chữ
+(`getByText`/`getByLabel`/`getByAltText`/`getByTitle`/`getByPlaceholder`, `name` của `getByRole`, `hasText` của `filter`) mà chuỗi cố định trông như dữ liệu
+(`dataLikeReason`: đuôi file, ngày/giờ, dãy ≥ 5 chữ số) ⇒ script ghi được có `// Cần xem: chọn theo <tên file|ngày giờ|mã số> "…"` + ghi chú đầu script gợi ý
+thêm biến input; validator cảnh báo `DATA_LOCATOR` (cả script AI); prompt Training dặn không hardcode tên mục tình cờ thấy trong thư viện/danh sách. Kết quả tra gắn vào từng thao tác (không cache theo chuỗi selector), tối đa 5 giây, chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
 `FRAGILE_SELECTOR` cho `locator('<css>')` dễ hỏng (cả script AI); prompt Training dặn tránh các mẫu này.
 
 **Tải file lên (biến kiểu `file`):** giá trị của biến là *tên* một file mẫu của dự án (`userData/fixtures/<project_id>/`, ngoài artifacts nên

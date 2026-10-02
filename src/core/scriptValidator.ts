@@ -1,7 +1,7 @@
 import ts from "typescript";
 import type { InputSchema, InputValues, ScriptValidation, ValidationIssue } from "../shared/types";
 import { sampleWordPattern } from "./inputValidation";
-import { cssFragility } from "./selectorStability";
+import { cssFragility, dataLikeReason, locatorTexts, shorten } from "./selectorStability";
 import { stepDirectives } from "./stepDirectives";
 
 export const ALLOWED_IMPORTS = new Set(["@playwright/test", "playwright", "playwright/test"]);
@@ -182,6 +182,17 @@ export function validateScript(source: string, opts: ValidateOptions): ScriptVal
             "warning",
             "FRAGILE_SELECTOR",
             `Selector dễ hỏng khi trang tải lại hoặc đổi giao diện (${reason}); dùng getByRole/getByLabel/getByTestId hoặc khoanh theo label của ô`,
+            node,
+          );
+        }
+      }
+      for (const text of locatorTexts(node)) {
+        const reason = dataLikeReason(text);
+        if (reason) {
+          add(
+            "warning",
+            "DATA_LOCATOR",
+            `Chọn phần tử theo dữ liệu cụ thể (${reason} "${shorten(text)}"): dữ liệu này bị đổi/xoá hoặc khác giữa các môi trường thì bước này lỗi; nếu cần, đưa vào biến input`,
             node,
           );
         }

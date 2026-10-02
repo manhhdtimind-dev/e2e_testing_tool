@@ -461,6 +461,10 @@ try {
     /\.waitFor\(\{ timeout: 30000 \}\);\n\s*await page\.getByRole\('button', \{ name: 'SummerMedTraffic-1_4:5\.png/.test(recorded.source) && !recorded.source.includes("Med${input.objective}"),
     `Ghi thao tác: ảnh hiện sau 4 giây được chờ lâu hơn (waitFor 30 s); tên file giữ nguyên, không thay "Traffic" giữa chữ bằng input.objective:\n${recorded.source}`,
   );
+  check(
+    recorded.source.includes('// Cần xem: chọn theo tên file "SummerMedTraffic-1_4:5.png"') && recorded.warnings.some((w) => w.includes("dữ liệu cụ thể")),
+    `Ghi thao tác: chọn ảnh theo tên file được đánh dấu "Cần xem" và có cảnh báo gợi ý đưa vào biến input (${recorded.warnings.join(" | ")})`,
+  );
   check(!(await win.locator(".rec-banner").count()), "Ghi thao tác: kết thúc thì ẩn thanh trạng thái đang ghi");
   await shot("13b-recorded-candidate");
   await win.getByRole("button", { name: "Chạy Trial…" }).click();

@@ -1,7 +1,7 @@
 import ts from "typescript";
 import type { InputField, InputSchema, InputValues } from "../shared/types";
 import { fieldTsType, sampleWordPattern } from "./inputValidation";
-import { locatorOf, replaceLocator } from "./selectorStability";
+import { dataLikeReason, locatorOf, locatorTexts, replaceLocator, shorten } from "./selectorStability";
 import { fold, stepDirectives } from "./stepDirectives";
 
 /** The subset of a Playwright recorder action the app keeps (never the aria snapshot: it holds typed values). */
@@ -342,7 +342,30 @@ function statementsFor(action: Extract<RecordingEvent, { kind: "action" }>, c: C
   const { event: e, flag } = withStableLocator(action, c);
   const out = isUpload(e.action) ? uploadStatements(e, c) : recordedStatements(e, c);
   const wait = out.length ? lateElementWait(action, out[0]) : null;
-  return [...(flag && out.length ? [flag] : []), ...(wait ? [wait] : []), ...out];
+  const data = out.length ? dataLocatorFlag(out[0], c) : null;
+  return [...(flag && out.length ? [flag] : []), ...(data ? [data] : []), ...(wait ? [wait] : []), ...out];
+}
+
+/** Flags a statement that picks an element by a specific piece of data (file name, date, long number) kept as a literal. */
+function dataLocatorFlag(stmt: string, c: Ctx): string | null {
+  const sf = ts.createSourceFile("recorded.ts", stmt, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const hits: { text: string; reason: string }[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n)) {
+      for (const text of locatorTexts(n)) {
+        const reason = dataLikeReason(text);
+        if (reason) hits.push({ text, reason });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  if (!hits.length) return null;
+  const { text, reason } = hits[0];
+  c.notes.add(
+    `Phần tử "${shorten(text)}" được chọn theo ${reason} cụ thể: nếu dữ liệu này có thể bị xoá/đổi hoặc khác giữa các lần chạy, thêm biến input (vd. tên ảnh) rồi thay chuỗi đó bằng input.<biến>.`,
+  );
+  return `// Cần xem: chọn theo ${reason} "${shorten(text)}" (dữ liệu cụ thể; đổi/xoá thì bước này lỗi)`;
 }
 
 /** Elements the page inserted this long after the previous interaction (lists loading in batches, images measured one by one…). */

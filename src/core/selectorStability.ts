@@ -89,6 +89,40 @@ export function specToCode(spec: LocatorSpec, root = "page"): string {
  * Replaces the locator of a recorded statement (`await <locator>.click()`) with `locator`.
  * Returns null when the code does not have that shape.
  */
+const FILE_NAME_RE = /\.(?:png|jpe?g|gif|webp|svg|bmp|heic|mp4|mov|webm|avi|pdf|docx?|xlsx?|csv|pptx?|zip|txt)\b/i;
+const DATE_TIME_RE = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[/.]\d{1,2}[/.]\d{2,4}\b|\b\d{1,2}:\d{2}(?::\d{2})?\b/;
+const LONG_NUMBER_RE = /\d{5,}/;
+
+/**
+ * Why a locator text looks like a specific piece of data (a file in a library, a dated record, an order/SKU number)
+ * rather than a UI label: such items may be gone, renamed or different on the next run or in another environment.
+ */
+export function dataLikeReason(text: string): string | null {
+  if (FILE_NAME_RE.test(text)) return "tên file";
+  if (DATE_TIME_RE.test(text)) return "ngày giờ";
+  if (LONG_NUMBER_RE.test(text)) return "mã số";
+  return null;
+}
+
+export const shorten = (text: string, max = 48) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+const TEXT_LOCATOR_METHODS = new Set(["getByText", "getByLabel", "getByAltText", "getByTitle", "getByPlaceholder"]);
+
+/** Literal texts a locator call matches elements by: `getByText('…')`, `getByRole(…, { name: '…' })`, `filter({ hasText: '…' })`. */
+export function locatorTexts(call: ts.CallExpression): string[] {
+  if (!ts.isPropertyAccessExpression(call.expression)) return [];
+  const method = call.expression.name.text;
+  const literal = (n: ts.Node | undefined) => (n && (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) ? [n.text] : []);
+  const option = (n: ts.Node | undefined, key: string) =>
+    n && ts.isObjectLiteralExpression(n)
+      ? n.properties.flatMap((p) => (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) && p.name.text === key ? literal(p.initializer) : []))
+      : [];
+  if (TEXT_LOCATOR_METHODS.has(method)) return literal(call.arguments[0]);
+  if (method === "getByRole") return option(call.arguments[1], "name");
+  if (method === "filter") return option(call.arguments[0], "hasText");
+  return [];
+}
+
 export function replaceLocator(code: string, locator: string): string | null {
   const span = locatorSpan(code);
   return span ? code.slice(0, span.start) + locator + code.slice(span.end) : null;

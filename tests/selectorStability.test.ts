@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildRecordedScript, type RecordingEvent, type StableFix } from "../src/core/recording";
-import { cssFragility, fragileReason, isGeneratedId, replaceLocator, specToCode } from "../src/core/selectorStability";
+import { cssFragility, dataLikeReason, fragileReason, isGeneratedId, replaceLocator, specToCode } from "../src/core/selectorStability";
 import { validateScript } from "../src/core/scriptValidator";
 import { selectorHints } from "../src/main/recording/stableLocator";
 import type { InputSchema } from "../src/shared/types";
@@ -67,6 +67,29 @@ describe("elements that appeared late while recording", () => {
     expect(buildRecordedScript([tile()], base).source).toContain("name: 'MedImage-1_4:5.png Vertical 4:5'");
     const word = { ...tile(), code: "await page.getByText('Format: Image (beta)').click();" };
     expect(buildRecordedScript([word], base).source).toContain("page.getByText(`Format: ${input.ad_format} (beta)`).click();");
+  });
+});
+
+describe("locators that pick a specific piece of data", () => {
+  it("recognises file names, dates/times and long numbers but not UI labels", () => {
+    expect(dataLikeReason("15839TBN-ProKitchenTowel-MedImage-1_4:5.png Vertical 4:5")).toBe("tên file");
+    expect(dataLikeReason("Website image - 2026-10-01 15:")).toBe("ngày giờ");
+    expect(dataLikeReason("Đơn 31/12/2025")).toBe("ngày giờ");
+    expect(dataLikeReason("Order 1234567")).toBe("mã số");
+    for (const label of ["Save", "Vertical 4:5", "1.91:1", "Step 12", "+ Add Creative", "Ad Group 1"]) expect(dataLikeReason(label), label).toBeNull();
+  });
+
+  it("flags them in recorded scripts and in validation, not when the text comes from input", () => {
+    const base = { baseUrl: BASE, schema, sample: { owner: "Bob" }, secrets: {}, steps: [], closeAtEnd: false };
+    const click = (code: string): RecordingEvent => ({ kind: "action", t: 1, page: 0, url: `${BASE}/new`, action: { name: "click", selector: "x" }, code });
+    const r = buildRecordedScript([click("await page.getByRole('button', { name: 'banner-2026-10-01.png' }).click();")], base);
+    expect(r.source).toContain(`// Cần xem: chọn theo tên file "banner-2026-10-01.png" (dữ liệu cụ thể; đổi/xoá thì bước này lỗi)\n  await page.getByRole('button', { name: 'banner-2026-10-01.png' }).click();`);
+    expect(r.notes.join("\n")).toContain("thêm biến input");
+    const v = validateScript(r.source, { schema, sampleInput: { owner: "Bob" } });
+    expect(v.issues.filter((i) => i.code === "DATA_LOCATOR").map((i) => i.severity)).toEqual(["warning"]);
+
+    const fromInput = buildRecordedScript([click("await page.getByRole('button', { name: 'Bob' }).click();")], base);
+    expect(fromInput.source).not.toContain("Cần xem");
   });
 });
 

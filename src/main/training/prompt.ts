@@ -125,7 +125,8 @@ export async function run(page: Page, input: Input): Promise<void> {
    - Use relative URLs with page.goto (the runner sets baseURL to the environment base URL).
    - Prefer getByRole / getByLabel / getByTestId / getByText locators taken from the snapshot or from the Playwright code the tools return. Never use mouse coordinates or click positions.
    - Never use ids generated per page load (e.g. \`#el-id-4190-146\`, \`#:r1:\`, \`#mui-12\`), hashed classes (\`.css-1x2y3z\`), layout classes (\`.flex.w-full\`), deep CSS chains or \`.nth()\` by position — they change between loads. For a control without an accessible name, scope it by the label of its form item: \`page.locator('.el-form-item').filter({ has: page.getByText('Account', { exact: true }) }).getByRole('combobox')\`.
-   - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts. Never call page.pause() — the runner is unattended.
+   - When a step says to pick an item from a library or list (image, file, record) without naming it, do not hardcode the name of the item you happened to see (file names, dates, long numbers change between runs): pick it by a property the step gives, or ask through status "blocked" which input field should hold it.
+   - Wait on conditions (expect(...).toBeVisible(), page.waitForURL(...)), not fixed timeouts. Elements that load slowly (lists that fill in batches) get \`await locator.waitFor({ timeout: 30000 })\` before acting. Never call page.pause() — the runner is unattended.
    - Do not add waitForTimeout or other delays to slow the run down: the runner replays every action at a speed a person can follow by itself.
    - Do not log in inside the script (the runner has its own authenticated session). Only import from "@playwright/test". No fs, process, require, eval or network calls.
    - Add a comment \`// Step N: <manual step>\` before the code of each manual step.
