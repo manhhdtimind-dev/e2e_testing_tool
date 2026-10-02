@@ -101,7 +101,11 @@ phần tử, rồi class ổn định của chính nó) và giữ ứng viên đ
 phần tử tương tác được theo ngữ nghĩa HTML/ARIA (`button`, `a[href]`, `input`, `select`, `textarea`, `label`, role tương tác, `tabindex ≥ 0`,
 `contenteditable`; `tabindex="-1"` không tính) ⇒ click vào gốc widget ngay dưới container có label (vd. `.el-select`, không phải `.el-select__selection`
 chỉ có kích thước khi hover/focus), trừ nút con xoá/đóng (`clear`/`close`/`remove`…). Điều hướng xảy ra trong 10 giây sau click/phím trong cùng
-origin là do app ⇒ `waitForURL` với đoạn id trong đường dẫn thay bằng `[^/]+`, không `goto`. Kết quả tra gắn vào từng thao tác (không cache theo chuỗi selector), tối đa 5 giây, chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
+origin là do app ⇒ `waitForURL` với đoạn id trong đường dẫn thay bằng `[^/]+`, không `goto`. Init script ghi thời điểm mỗi phần tử được chèn vào trang
+(MutationObserver) và thời điểm click/phím trước đó của người dùng; phần tử của thao tác xuất hiện ≥ 3 giây sau thao tác trước (danh sách tải dần,
+thư viện ảnh đo kích thước từng ảnh…) ⇒ chèn `await <locator>.waitFor({ timeout })` trước thao tác, timeout = 3× thời gian đó, trong khoảng 30 giây–2 phút
+(timeout mặc định mỗi action của runner là 15 giây). Giá trị input mẫu nằm trong text dài chỉ được thay bằng `input.<field>` khi đứng thành từ riêng
+(`sampleWordPattern`: "Image" trong "Format: Image", không trong "…-MedImage-1.png"); validator `HARDCODED_INPUT` dùng cùng luật. Kết quả tra gắn vào từng thao tác (không cache theo chuỗi selector), tối đa 5 giây, chờ xong trước khi đóng trình duyệt. Không tìm được ⇒ giữ selector cũ, chèn `// Cần sửa: selector dễ đổi (…)` và ghi chú đầu script. Validator cảnh báo
 `FRAGILE_SELECTOR` cho `locator('<css>')` dễ hỏng (cả script AI); prompt Training dặn tránh các mẫu này.
 
 **Tải file lên (biến kiểu `file`):** giá trị của biến là *tên* một file mẫu của dự án (`userData/fixtures/<project_id>/`, ngoài artifacts nên

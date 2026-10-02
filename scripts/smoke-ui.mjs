@@ -394,6 +394,8 @@ try {
       await widget.locator(".dselect__selection").click();
       await rp.getByRole("option", { name: choice }).click();
     }
+    await rp.getByRole("button", { name: "Choose image" }).click();
+    await rp.getByRole("button", { name: /MedTraffic-1_4:5\.png/ }).click();
     await bar("next");
     await bar("shot");
     check((await banner.innerText()).includes("Bước 6/7"), "Thanh nổi: 📷 ở bước Chụp màn hình tự chuyển sang bước sau");
@@ -429,14 +431,14 @@ try {
     `Bấm Cập nhật input mẫu: test case lưu giá trị vừa ghi (${JSON.stringify(updatedCase.sample_input)})`,
   );
   const recSession = await bridge("getRecordingState");
-  check(recSession.status === "SAVED" && recSession.action_count === 14 && recSession.shot_count === 2, `Ghi thao tác: đếm 14 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
+  check(recSession.status === "SAVED" && recSession.action_count === 16 && recSession.shot_count === 2, `Ghi thao tác: đếm 16 thao tác trên trang, 2 ảnh, không tính click thanh nổi (${recSession.action_count}/${recSession.shot_count})`);
   const recorded = (await bridge("getScriptState", "TC_CAMP_001")).candidates[0];
   check(recorded.origin === "recorded" && recorded.revision_no === 3 && recorded.attempt_id === null, "Ghi thao tác: tạo candidate #3 có nhãn GHI THAO TÁC");
   check(
     recorded.source.includes(".fill(input.campaign_name)") &&
       recorded.source.includes(".selectOption(input.objective)") &&
       !recorded.source.includes("Rec Campaign") &&
-      !recorded.source.includes("Traffic") &&
+      !recorded.source.replaceAll("SummerMedTraffic-1_4:5.png", "").includes("Traffic") &&
       (recorded.source.match(/await page\.screenshot\(\{ fullPage: true \}\);/g) ?? []).length === 2 &&
       recorded.source.includes("// Step 5: Chụp màn hình form") &&
       recorded.source.includes("await page.waitForURL(/\\/campaigns(?:[?#]|$)/);\n  await page.screenshot({ fullPage: true });\n}") &&
@@ -454,6 +456,10 @@ try {
   check(
     recorded.source.includes(widgetClick("Region")) && recorded.source.includes(widgetClick("Channel")) && !recorded.source.includes("nth=") && !recorded.source.includes(".first()"),
     `Ghi thao tác: placeholder "Select" theo vị trí được thay bằng locator riêng của từng ô (Region, Channel), click vào gốc widget:\n${recorded.source}`,
+  );
+  check(
+    /\.waitFor\(\{ timeout: 30000 \}\);\n\s*await page\.getByRole\('button', \{ name: 'SummerMedTraffic-1_4:5\.png/.test(recorded.source) && !recorded.source.includes("Med${input.objective}"),
+    `Ghi thao tác: ảnh hiện sau 4 giây được chờ lâu hơn (waitFor 30 s); tên file giữ nguyên, không thay "Traffic" giữa chữ bằng input.objective:\n${recorded.source}`,
   );
   check(!(await win.locator(".rec-banner").count()), "Ghi thao tác: kết thúc thì ẩn thanh trạng thái đang ghi");
   await shot("13b-recorded-candidate");

@@ -35,6 +35,41 @@ describe("fragile selectors", () => {
   });
 });
 
+describe("elements that appeared late while recording", () => {
+  const tile = (appearMs?: number, stable?: StableFix): RecordingEvent => ({
+    kind: "action",
+    t: 1,
+    page: 0,
+    url: `${BASE}/new`,
+    action: { name: "click", selector: 'internal:role=button[name="MedImage-1_4:5.png Vertical 4:5"i]' },
+    code: "await page.getByRole('button', { name: 'MedImage-1_4:5.png Vertical 4:5', exact: true }).click();",
+    appearMs,
+    stable,
+  });
+  const base = { baseUrl: BASE, schema: { fields: [{ name: "ad_format", type: "string" as const, required: true, secret: false }] }, sample: { ad_format: "Image" }, secrets: {}, steps: [], closeAtEnd: false };
+
+  it("waits longer for an element the page inserted seconds after the previous action", () => {
+    const r = buildRecordedScript([tile(9000)], base);
+    expect(r.source).toContain(
+      "await page.getByRole('button', { name: 'MedImage-1_4:5.png Vertical 4:5', exact: true }).waitFor({ timeout: 30000 });\n  await page.getByRole('button', { name: 'MedImage-1_4:5.png Vertical 4:5', exact: true }).click();",
+    );
+    expect(buildRecordedScript([tile(60_000)], base).source).toContain("waitFor({ timeout: 120000 })");
+    expect(buildRecordedScript([tile(1500)], base).source).not.toContain("waitFor");
+    expect(validateScript(r.source, { schema: base.schema, sampleInput: base.sample }).issues.filter((i) => i.severity === "error")).toEqual([]);
+  });
+
+  it("waits on the stable locator when the recorder one was replaced", () => {
+    const r = buildRecordedScript([tile(5000, { reason: "nth", locator: "page.getByTestId('tile')" })], base);
+    expect(r.source).toContain("await page.getByTestId('tile').waitFor({ timeout: 30000 });\n  await page.getByTestId('tile').click();");
+  });
+
+  it("replaces a sample value inside a text only as a whole word", () => {
+    expect(buildRecordedScript([tile()], base).source).toContain("name: 'MedImage-1_4:5.png Vertical 4:5'");
+    const word = { ...tile(), code: "await page.getByText('Format: Image (beta)').click();" };
+    expect(buildRecordedScript([word], base).source).toContain("page.getByText(`Format: ${input.ad_format} (beta)`).click();");
+  });
+});
+
 describe("app navigation after a click", () => {
   const nav = (t: number, url: string): RecordingEvent => ({ kind: "action", t, page: 0, url, action: { name: "navigate", url }, code: `await page.goto('${url}');` });
   const click = (t: number): RecordingEvent => ({

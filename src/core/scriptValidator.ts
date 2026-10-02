@@ -1,5 +1,6 @@
 import ts from "typescript";
 import type { InputSchema, InputValues, ScriptValidation, ValidationIssue } from "../shared/types";
+import { sampleWordPattern } from "./inputValidation";
 import { cssFragility } from "./selectorStability";
 import { stepDirectives } from "./stepDirectives";
 
@@ -50,7 +51,7 @@ function isHardcodedSample(literal: string, sample: string): boolean {
   const v = sample.trim();
   if (v.length < 2 || /^(true|false)$/i.test(v)) return false;
   if (literal.trim() === v) return true;
-  return v.length >= 4 && literal.includes(v);
+  return v.length >= 4 && sampleWordPattern(v).test(literal);
 }
 
 export function validateScript(source: string, opts: ValidateOptions): ScriptValidation {

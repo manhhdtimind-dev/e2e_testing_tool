@@ -64,6 +64,17 @@ export function coerceInput(schema: InputSchema, values: InputValues): Record<st
   return out;
 }
 
+/**
+ * Matches a sample value inside a longer text only as a whole word: "Image" in "Format: Image" but not in
+ * "…-MedImage-1.png". Edges that are not letters/digits (e.g. "[IT-test]") match anywhere.
+ */
+export function sampleWordPattern(value: string, flags = ""): RegExp {
+  const esc = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const head = /^[\p{L}\p{N}]/u.test(value) ? "(?<![\\p{L}\\p{N}])" : "";
+  const tail = /[\p{L}\p{N}]$/u.test(value) ? "(?![\\p{L}\\p{N}])" : "";
+  return new RegExp(head + esc + tail, `u${flags}`);
+}
+
 export function redactText(text: string, secrets: string[]): string {
   let out = text;
   for (const s of secrets) {

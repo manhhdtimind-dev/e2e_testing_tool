@@ -86,6 +86,28 @@ function placeholderSelect(label, options) {
       })();</script>`;
 }
 
+/**
+ * Image picker that shows its tiles only after "reading" every image (4 s), like libraries that measure images
+ * before listing them. A tile name contains the sample objective inside a word ("…MedTraffic-1…").
+ */
+function imagePicker() {
+  const files = ["SummerMedTraffic-1_4:5.png", "banner-square-2.jpg", "banner-wide-3.jpg"];
+  return `<div class="picker"><button type="button" class="picker__open">Choose image</button><div class="picker__grid"></div><p class="picker__status"></p></div>
+      <script>(() => {
+        const root = document.currentScript.previousElementSibling;
+        const grid = root.querySelector(".picker__grid"), status = root.querySelector(".picker__status");
+        root.querySelector(".picker__open").addEventListener("click", () => {
+          grid.replaceChildren();
+          status.textContent = "Reading size of ${files.length} image(s)…";
+          setTimeout(() => {
+            grid.innerHTML = ${JSON.stringify(files.map((f) => `<button type="button" class="picker__cell"><span class="picker__name">${esc(f)}</span> <span class="picker__tag">Vertical 4:5</span></button>`).join(""))};
+            status.textContent = "";
+          }, 4000);
+        });
+        grid.addEventListener("click", (e) => { const cell = e.target.closest(".picker__cell"); if (cell) status.textContent = "Chosen: " + cell.querySelector(".picker__name").textContent; });
+      })();</script>`;
+}
+
 function send(res, status, html, headers = {}) {
   res.writeHead(status, { "content-type": "text/html; charset=utf-8", ...headers });
   res.end(html);
@@ -144,6 +166,7 @@ const server = createServer(async (req, res) => {
       ${placeholderSelect("Region", ["EU", "US"])}
       ${placeholderSelect("Channel", ["Search", "Video"])}
       ${placeholderSelect("Tier", ["Gold", "Silver"])}
+      ${imagePicker()}
       <button type="submit">${broken ? "Lưu lại" : "Save"}</button></form>`));
   }
   if (url.pathname === "/campaigns/new" && req.method === "POST") {

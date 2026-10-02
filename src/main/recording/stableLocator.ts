@@ -21,6 +21,7 @@ function targetKind(actionName: string): TargetKind | null {
  * Mirrors the clicks the recorder records: trusted left clicks from the mouse, not on checkboxes/radios/ranges.
  * On pointerdown (before the page moves focus) it also notes which elements on the path had a box, so the lookup
  * never picks a part that only has a size while focused (`__e2eShown`).
+ * `__e2eLate(el)`: how long after the user's previous click/key press the page inserted that element (0 if before).
  */
 export const TARGET_CAPTURE_SCRIPT = `(() => {
   if (window.top !== window || window.__e2eTargets) return;
@@ -29,27 +30,47 @@ export const TARGET_CAPTURE_SCRIPT = `(() => {
   const describe = (e) => e ? [e.textContent && e.textContent.length < 2000 ? e.textContent : "", e.id, e.getAttribute("placeholder"), e.getAttribute("aria-label"),
     e.getAttribute("title"), e.getAttribute("alt"), e.getAttribute("name"), e.value].map(norm).join("\\n") : "";
   const target = (e) => (e.composedPath ? e.composedPath()[0] : e.target);
+  const born = new WeakMap();
+  new MutationObserver((records) => {
+    const t = Date.now();
+    for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1) born.set(n, t);
+  }).observe(document, { childList: true, subtree: true });
+  const insertedAt = (el) => {
+    let t = 0;
+    for (let n = el; n; n = n.parentElement) t = Math.max(t, born.get(n) || 0);
+    return t;
+  };
+  let lastUser = Date.now();
+  addEventListener("keydown", (e) => { if (e.isTrusted) lastUser = Date.now(); }, true);
   let pressed = null;
   addEventListener("pointerdown", (e) => {
     const el = target(e);
+    const before = lastUser;
+    if (e.isTrusted) lastUser = Date.now();
     if (!(el instanceof Element)) return;
     const shown = new Set();
     for (let n = el, i = 0; n && n !== document.documentElement && i < 30; n = n.parentElement, i++) {
       const r = n.getBoundingClientRect(), cs = getComputedStyle(n);
       if (r.width > 0 && r.height > 0 && cs.visibility !== "hidden") shown.add(n);
     }
-    pressed = { el, shown };
+    pressed = { el, shown, before };
   }, true);
   const track = (type, kind) => addEventListener(type, (e) => {
     const el = target(e);
     if (!(el instanceof Element) || el.closest(${JSON.stringify(TOOLBAR_TAG)})) return;
     if (kind === "click" && (!e.isTrusted || e.detail === 0 || e.button !== 0 || (el instanceof HTMLInputElement && ["checkbox", "radio", "range"].includes(el.type)))) return;
     const around = el.closest("button, a, label, [role], [tabindex]");
-    const shown = kind === "click" && pressed && (pressed.el === el || pressed.el.contains(el) || el.contains(pressed.el)) ? pressed.shown : null;
+    const same = kind === "click" && pressed && (pressed.el === el || pressed.el.contains(el) || el.contains(pressed.el));
+    const shown = same ? pressed.shown : null;
+    const late = Math.max(0, insertedAt(el) - (same ? pressed.before : lastUser));
     if (kind === "click") pressed = null;
-    list.push({ kind, el, t: Date.now(), used: false, shown, text: describe(el) + "\\n" + (around && around !== el ? describe(around) : "") });
+    list.push({ kind, el, t: Date.now(), used: false, shown, late, text: describe(el) + "\\n" + (around && around !== el ? describe(around) : "") });
     if (list.length > 100) list.shift();
   }, true);
+  window.__e2eLate = (el) => {
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].el === el) return list[i].late;
+    return 0;
+  };
   window.__e2eShown = (el, clicked) => {
     const entry = list.find((x) => x.kind === "click" && x.el === clicked);
     if (!entry || !entry.shown) return el;
@@ -107,6 +128,11 @@ export async function takeActionTarget(page: Page, action: { name: string; selec
   const el = handle.asElement();
   if (!el) await handle.dispose();
   return el;
+}
+
+/** `__e2eLate` of the element a recorded action ran on. */
+export async function appearDelay(target: ElementHandle): Promise<number> {
+  return target.evaluate((el) => (window as unknown as { __e2eLate?: (e: Element) => number }).__e2eLate?.(el as Element) ?? 0);
 }
 
 interface CandidateConfig {

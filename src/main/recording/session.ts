@@ -5,7 +5,7 @@ import type { Browser, BrowserContext, ElementHandle, Page } from "playwright";
 import type { AgentProvider, CandidateRevision, Environment, InputValues, RecordingState, TestCase } from "../../shared/types";
 import { buildRecordedScript, sanitizeRecordedAction, TOOLBAR_TAG, type RecordedAction, type RecordingEvent, type StableFix } from "../../core/recording";
 import { fragileReason } from "../../core/selectorStability";
-import { findStableLocator, takeActionTarget, TARGET_CAPTURE_SCRIPT } from "./stableLocator";
+import { appearDelay, findStableLocator, takeActionTarget, TARGET_CAPTURE_SCRIPT } from "./stableLocator";
 import { stepDirectives, type StepDirectives } from "../../core/stepDirectives";
 import type { AppContext } from "../context";
 import { artifactDir, toArtifactRef } from "../paths";
@@ -49,9 +49,17 @@ interface Session {
   targets: Map<number, Promise<ElementHandle | null>>;
   /** Index in `events` → stable replacement for that action's fragile selector, looked up on the live page right after the action. */
   stable: Map<number, { selector: string; fix: Promise<StableFix> }>;
+  /** Index in `events` → how long after the previous interaction the page inserted that action's element. */
+  delays: Map<number, Promise<number>>;
 }
 
 const STABLE_LOOKUP_MS = 5000;
+
+function trackTarget(s: Session, page: Page, index: number, action: RecordedAction) {
+  const target = takeActionTarget(page, action).catch(() => null);
+  s.targets.set(index, target);
+  s.delays.set(index, target.then((t) => (t ? appearDelay(t) : 0)).catch(() => 0));
+}
 
 function trackStability(s: Session, page: Page, index: number, action: RecordedAction) {
   const selector = action.selector;
@@ -68,6 +76,7 @@ function trackStability(s: Session, page: Page, index: number, action: RecordedA
 function clearTracking(s: Session) {
   s.stable.clear();
   s.targets.clear();
+  s.delays.clear();
 }
 
 let current: Session | null = null;
@@ -174,6 +183,7 @@ export async function startRecording(
     lastUrl: new WeakMap(),
     targets: new Map(),
     stable: new Map(),
+    delays: new Map(),
   };
   current = s;
   emit(ctx, s);
@@ -205,7 +215,7 @@ export async function startRecording(
           if (a.selector?.includes(TOOLBAR_TAG) || code.includes(TOOLBAR_TAG)) return;
           s.events.push({ kind: "action", t: Date.now(), page: pageIndex(p), url: s.lastUrl.get(p) ?? pageUrl(p), action: a, code });
           s.lastUrl.set(p, pageUrl(p));
-          s.targets.set(s.events.length - 1, takeActionTarget(p, a).catch(() => null));
+          trackTarget(s, p, s.events.length - 1, a);
           trackStability(s, p, s.events.length - 1, a);
           if (a.name !== "openPage" && a.name !== "closePage") s.state.action_count++;
           emit(ctx, s);
@@ -332,7 +342,11 @@ export async function finishRecording(ctx: AppContext, sessionId?: string): Prom
   const firstClose = s.directives.close[0];
   const closeAtEnd = firstClose !== undefined && s.state.step >= firstClose;
   const fixes = new Map(await Promise.all([...s.stable].map(async ([i, { fix }]) => [i, await fix] as const)));
-  const events = s.events.map((e, i) => (e.kind === "action" && fixes.has(i) ? { ...e, stable: fixes.get(i) } : e));
+  const giveUp = new Promise<number>((r) => setTimeout(() => r(0), STABLE_LOOKUP_MS));
+  const delays = new Map(await Promise.all([...s.delays].map(async ([i, d]) => [i, await Promise.race([d, giveUp])] as const)));
+  const events = s.events.map((e, i) =>
+    e.kind === "action" ? { ...e, ...(fixes.has(i) ? { stable: fixes.get(i) } : {}), ...(delays.get(i) ? { appearMs: delays.get(i) } : {}) } : e,
+  );
   await s.browser?.close().catch(() => undefined);
   try {
     const c = saveCandidate(ctx, s, closeAtEnd, events);

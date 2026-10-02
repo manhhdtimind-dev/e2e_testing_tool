@@ -1,7 +1,7 @@
 import ts from "typescript";
 import type { InputField, InputSchema, InputValues } from "../shared/types";
-import { fieldTsType } from "./inputValidation";
-import { replaceLocator } from "./selectorStability";
+import { fieldTsType, sampleWordPattern } from "./inputValidation";
+import { locatorOf, replaceLocator } from "./selectorStability";
 import { fold, stepDirectives } from "./stepDirectives";
 
 /** The subset of a Playwright recorder action the app keeps (never the aria snapshot: it holds typed values). */
@@ -26,6 +26,8 @@ export type RecordingEvent =
       code: string;
       /** Set when the recorder selector looked fragile; looked up for this action (position selectors like `nth=0` change meaning over time). */
       stable?: StableFix;
+      /** How long after the user's previous interaction the element of this action was inserted into the page. */
+      appearMs?: number;
     }
   | { kind: "shot"; t: number; url: string }
   | { kind: "step"; t: number; step: number };
@@ -205,13 +207,13 @@ function rewriteStatement(stmt: ts.Statement, sf: ts.SourceFile, action: Recorde
   const secretByValue = (value: string) => c.secretFields.find((f) => value !== "" && c.opts.secrets[f.name] === value);
 
   const containsSample = (text: string): string | null => {
-    const hits = nonSecret.filter((f) => (c.opts.sample[f.name] ?? "").trim().length >= 4 && text.includes(c.opts.sample[f.name]));
+    const hits = nonSecret.filter((f) => (c.opts.sample[f.name] ?? "").trim().length >= 4 && sampleWordPattern(c.opts.sample[f.name]).test(text));
     if (!hits.length) return null;
     hits.sort((a, b) => c.opts.sample[b.name].length - c.opts.sample[a.name].length);
     let parts: { text: string; field?: InputField }[] = [{ text }];
     for (const f of hits) {
-      const v = c.opts.sample[f.name];
-      parts = parts.flatMap((p) => (p.field ? [p] : p.text.split(v).flatMap((t, i) => (i ? [{ text: "", field: f }, { text: t }] : [{ text: t }]))));
+      const re = sampleWordPattern(c.opts.sample[f.name], "g");
+      parts = parts.flatMap((p) => (p.field ? [p] : p.text.split(re).flatMap((t, i) => (i ? [{ text: "", field: f }, { text: t }] : [{ text: t }]))));
     }
     return "`" + parts.map((p) => (p.field ? `\${input.${p.field.name}}` : templateText(p.text))).join("") + "`";
   };
@@ -339,7 +341,23 @@ function statementsFor(action: Extract<RecordingEvent, { kind: "action" }>, c: C
   }
   const { event: e, flag } = withStableLocator(action, c);
   const out = isUpload(e.action) ? uploadStatements(e, c) : recordedStatements(e, c);
-  return flag && out.length ? [flag, ...out] : out;
+  const wait = out.length ? lateElementWait(action, out[0]) : null;
+  return [...(flag && out.length ? [flag] : []), ...(wait ? [wait] : []), ...out];
+}
+
+/** Elements the page inserted this long after the previous interaction (lists loading in batches, images measured one by one…). */
+const LATE_APPEAR_MS = 3000;
+
+/**
+ * While recording the user waited for this element to show up; replay waits for it longer than the runner's action
+ * timeout: 3× the time it took, at least 30 s, at most 2 min.
+ */
+function lateElementWait(e: Extract<RecordingEvent, { kind: "action" }>, stmt: string): string | null {
+  if ((e.appearMs ?? 0) < LATE_APPEAR_MS) return null;
+  const locator = locatorOf(stmt);
+  if (!locator) return null;
+  const timeout = Math.min(120_000, Math.max(30_000, Math.ceil((e.appearMs! * 3) / 1000) * 1000));
+  return `await ${locator}.waitFor({ timeout: ${timeout} });`;
 }
 
 function recordedStatements(e: Extract<RecordingEvent, { kind: "action" }>, c: Ctx): string[] {

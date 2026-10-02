@@ -90,6 +90,17 @@ export function specToCode(spec: LocatorSpec, root = "page"): string {
  * Returns null when the code does not have that shape.
  */
 export function replaceLocator(code: string, locator: string): string | null {
+  const span = locatorSpan(code);
+  return span ? code.slice(0, span.start) + locator + code.slice(span.end) : null;
+}
+
+/** The `page.…` locator a recorded statement acts on, e.g. `page.getByRole('button', { name: 'Save' })`. */
+export function locatorOf(code: string): string | null {
+  const span = locatorSpan(code);
+  return span ? code.slice(span.start, span.end) : null;
+}
+
+function locatorSpan(code: string): { start: number; end: number } | null {
   const sf = ts.createSourceFile("recorded.ts", code, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
   for (const stmt of sf.statements) {
     if (!ts.isExpressionStatement(stmt)) continue;
@@ -100,7 +111,7 @@ export function replaceLocator(code: string, locator: string): string | null {
     let root: ts.Node = target;
     while (ts.isCallExpression(root) || ts.isPropertyAccessExpression(root)) root = root.expression;
     if (!ts.isIdentifier(root) || root.text !== "page") continue;
-    return code.slice(0, target.getStart(sf)) + locator + code.slice(target.getEnd());
+    return { start: target.getStart(sf), end: target.getEnd() };
   }
   return null;
 }
