@@ -72,6 +72,8 @@ từ test case, thread mới, không đưa candidate cũ, không gửi ngữ c�
 (AI sửa candidate đang mở ở khung Candidate — `base_candidate_id`, không phải luôn bản mới nhất; cần có candidate và prompt hoặc ngữ cảnh lỗi từ Testing).
 Candidate gốc lưu ở `training_attempts.base_candidate_id`: được ghi vào `candidate.ts`, dùng lấy Trial gần nhất làm ngữ cảnh, so "không thay đổi",
 và làm mốc "So với #N" của candidate mới. Revision mới luôn là số lớn nhất + 1; nếu gốc cũ hơn bản mới nhất, prompt nói rõ không mang theo thay đổi của các bản sau.
+Khi có candidate gốc, prompt (tiếp tục thread hoặc thread mới) có khối **Edit mode** ghi đè "How to work" bước 2–4: đọc `candidate.ts` + log lỗi, sửa tối thiểu,
+không dùng trình duyệt nếu nguyên nhân thấy được từ code/log, chỉ mở trang để kiểm tra đúng phần tử cần, không chạy lại test case từ bước 1, không tạo dữ liệu.
 
 **Tham chiếu theo dự án (Cài đặt `training_project_refs`, mặc định bật):** mỗi lượt Training ghi lại `workspaces/<script_id>/reference/`
 từ version APPROVED mới nhất của các test case khác cùng dự án (tối đa 6 script / 60 KB, xếp theo độ giống của tiêu đề + steps, cùng nhóm được cộng điểm;

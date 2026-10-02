@@ -192,6 +192,15 @@ ${rulesBlock(tc, maxActions)}
 ${extra ? `\n${extra}\n` : ""}${userPrompt.trim() ? `\n## Additional instructions from the user\n${userPrompt.trim()}` : ""}`;
 }
 
+/** "Gửi prompt" edits the saved script; without this agents replay the whole test case and rewrite it. */
+export function editModeBlock(maxActions: number): string {
+  return `## Edit mode — this turn fixes the existing script, it is not a new training run (overrides "How to work" steps 2–4)
+1. Read \`${CANDIDATE_FILE}\` and the failure/run log above first. Make the smallest change that does what the user asks: keep every line that is not part of the problem exactly as it is (same locators, order, comments). Do not rewrite, restructure or reformat the script.
+2. If the cause is visible from the code, the error and the runner log (extra or duplicated steps, an action on an element that is gone after the page changed, a hardcoded value instead of input.<field>, a missing wait), edit \`${CANDIDATE_FILE}\` directly WITHOUT any browser action.
+3. Use the Playwright MCP tools only to check the specific page or element you cannot infer (for example the right locator of the failing step). Do not replay the test case from step 1 and do not submit forms or create data unless that is the only way to reach the element you must inspect. Budget: at most ${maxActions} browser actions.
+4. Take a final browser_take_screenshot only if you used the browser.`;
+}
+
 /** Which saved revision is in candidate.ts; says so when the user chose an older one than the newest. */
 function baseRevisionNote(revisionNo: number, latestNo: number | null | undefined): string {
   return latestNo && latestNo !== revisionNo
@@ -218,7 +227,8 @@ ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}\n` : ""}${opts.extra ? `\n$
 ## User request
 ${opts.userPrompt.trim() || "Fix the problems above so the script runs end-to-end."}
 
-You may use the Playwright MCP tools again to re-inspect the pages (budget ${opts.maxActions} browser actions). Keep all script rules from before (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits or pacing delays, only @playwright/test imports, // Step N comments). Take one final browser_take_screenshot.
+${opts.revisionNo ? editModeBlock(opts.maxActions) : `You may use the Playwright MCP tools to inspect the pages (budget ${opts.maxActions} browser actions). Take one final browser_take_screenshot.`}
+Keep all script rules from before (input.<field> only, relative URLs, role/label locators, no coordinates, no fixed waits or pacing delays, only @playwright/test imports, // Step N comments).
 
 ${directivesBlock(opts.tc)}
 Finish with ONE line of JSON: {"status":"done"|"blocked"|"auth_required","reason":"...","steps_done":[...]}`;
@@ -249,9 +259,9 @@ ${history ? `- earlier user prompts (oldest first):\n${history}` : "- no earlier
 ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}` : ""}
 
 ${rulesBlock(opts.tc, opts.maxActions)}
-${opts.extra ? `\n${opts.extra}\n` : ""}
+${opts.revisionNo ? `\n${editModeBlock(opts.maxActions)}\n` : ""}${opts.extra ? `\n${opts.extra}\n` : ""}
 ## User request for this turn
-${opts.userPrompt.trim() || "Review the saved script against the manual steps, verify it on the site and improve it where needed."}`;
+${opts.userPrompt.trim() || (opts.revisionNo ? "Check the saved script against the manual steps and the run log above, and fix what is wrong." : "Write the script for the manual steps.")}`;
 }
 
 export function repairPrompt(issues: ValidationIssue[]): string {

@@ -84,6 +84,22 @@ describe("prompts with project references", () => {
     expect(boot).toContain("candidate revision #2, the revision the user chose to edit (newer revisions up to #4 exist");
   });
 
+  it("edits the saved script in place instead of replaying the test case when there is a candidate", () => {
+    const base = { userPrompt: "fix lỗi này", sample: {}, tc, lastRun: null, maxActions: 50 };
+    const revise = revisePrompt({ ...base, revisionNo: 2 });
+    expect(revise).toContain("Edit mode");
+    expect(revise).toContain("WITHOUT any browser action");
+    expect(revise).toContain("Do not replay the test case from step 1");
+    expect(revise).not.toContain("Take one final browser_take_screenshot");
+    expect(revisePrompt({ ...base, revisionNo: null })).not.toContain("Edit mode");
+
+    const boot = (revisionNo: number | null) => bootstrapPrompt({ tc, env, sample: {}, maxActions: 50, revisionNo, promptHistory: [], lastRun: null, userPrompt: "fix lỗi này", reason: "r" });
+    const withScript = boot(2);
+    expect(withScript.indexOf("Edit mode")).toBeGreaterThan(withScript.indexOf("## How to work"));
+    expect(withScript).toContain('overrides "How to work" steps 2–4');
+    expect(boot(null)).not.toContain("Edit mode");
+  });
+
   it("sends the verification failure with masked input and the step directives", () => {
     const p = verifyFailPrompt({
       tc,
