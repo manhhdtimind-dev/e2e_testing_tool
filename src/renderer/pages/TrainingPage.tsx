@@ -263,6 +263,8 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
 
   const integrationNote = integration && !integration[agent]?.ok ? `Adapter ${AGENT_LABEL[agent]} chưa qua kiểm tra tích hợp trên máy này (Cài đặt → Kiểm tra tích hợp).` : null;
 
+  const sendBlocked = busy || !!runningAttempt || recHere || !profileId || !envId || !candidate || (!prompt.trim() && !contextRef);
+
   /** auto: the agent writes a new script from the test case; revise: the agent edits the candidate that is open. */
   const start = async (mode: "auto" | "revise") => {
     if (!tc || !env || !profileId) return;
@@ -601,11 +603,16 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 style={{ width: "100%", marginTop: 10 }}
                 placeholder={
                   candidate
-                    ? `Gửi prompt: mô tả điều cần sửa ở candidate #${candidate.revision_no}, ví dụ: Step 4 phải chọn Objective trong dropdown thay vì gõ chữ.\nAgent Training Auto: ghi chú thêm cho AI (tuỳ chọn).`
+                    ? `Gửi prompt: mô tả điều cần sửa ở candidate #${candidate.revision_no}, ví dụ: Step 4 phải chọn Objective trong dropdown thay vì gõ chữ. Enter để gửi, Shift+Enter xuống dòng.\nAgent Training Auto: ghi chú thêm cho AI (tuỳ chọn).`
                     : "Ghi chú thêm cho AI khi Agent Training Auto (tuỳ chọn)"
                 }
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing || !candidate) return;
+                  e.preventDefault();
+                  if (!sendBlocked) void start("revise");
+                }}
               />
               <div className="small muted" style={{ marginTop: 6 }}>
                 Ghi thao tác và Agent Training Auto tạo một script mới; Gửi prompt sửa{" "}
@@ -650,7 +657,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 </button>
                 <button
                   className={`btn ${candidate ? "primary" : ""}`}
-                  disabled={busy || !!runningAttempt || recHere || !profileId || !envId || !candidate || (!prompt.trim() && !contextRef)}
+                  disabled={sendBlocked}
                   onClick={() => start("revise")}
                   title={
                     !candidate
