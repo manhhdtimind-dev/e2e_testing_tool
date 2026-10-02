@@ -78,16 +78,25 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     listTestCases: () => {
       const projects = new Map(ctx.repo.projects.where("1=1").map((p) => [p.project_id, p.name]));
       const cases = ctx.repo.testCases.where("1=1 ORDER BY test_id");
+      const lastRuns = new Map(
+        ctx.repo.testRuns.where("created_at = (SELECT MAX(x.created_at) FROM test_runs x WHERE x.test_id = test_runs.test_id)").map((r) => [r.test_id, r] as const),
+      );
       return cases
         .map((tc) => {
           const script = ctx.repo.scripts.where("test_id = ?", tc.test_id)[0];
           const versions = script ? ctx.repo.versions.where("script_id = ?", script.script_id) : [];
+          const approved = versions.filter((v) => v.status === "APPROVED");
+          const last = lastRuns.get(tc.test_id);
           return {
             ...tc,
             project_name: (tc.project_id && projects.get(tc.project_id)) || "",
             script_id: script?.script_id ?? null,
             version_count: versions.length,
-            approved_count: versions.filter((v) => v.status === "APPROVED").length,
+            approved_count: approved.length,
+            latest_approved: approved.length ? Math.max(...approved.map((v) => v.version_no)) : null,
+            last_run: last
+              ? { run_id: last.run_id, version_no: last.version_no, execution_status: last.execution_status, error_code: last.error_code, review_result: last.review_result, created_at: last.created_at }
+              : null,
           };
         })
         .sort((a, b) => a.project_name.localeCompare(b.project_name, "vi") || a.group_name.localeCompare(b.group_name, "vi") || a.test_id.localeCompare(b.test_id, "vi", { numeric: true }));

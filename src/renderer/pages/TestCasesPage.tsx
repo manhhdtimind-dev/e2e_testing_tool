@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { ImportPreview, InputField, InputSchema, InputValues, ParsedTestCase, ProjectTarget } from "../../shared/types";
 import { api, type ApiResult } from "../api";
-import { Badge, Modal, Panel, fmtTime, formatBytes, groupLabel, useAction, useConfirm, useFixtures, useToast } from "../components/ui";
+import { ALL, CASE_COLUMNS, CaseFilterBar, LastRun, ScriptStatus, SortTh, useCaseFilter, useSort } from "../components/caseTable";
+import { Modal, Panel, fmtTime, formatBytes, groupLabel, useAction, useConfirm, useFixtures, useToast } from "../components/ui";
 
 type CaseRow = ApiResult<"listTestCases">[number];
 type ProjectRow = ApiResult<"listProjects">[number];
@@ -9,17 +10,6 @@ type DeleteImpact = ApiResult<"testCaseDeleteImpact">;
 
 const VAR_RE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 const NEW_PROJECT = "__new__";
-const ALL = "__all__";
-const FILTER_KEY = "testcases.filter";
-
-function readFilter(): { project: string; group: string } {
-  try {
-    const v = JSON.parse(localStorage.getItem(FILTER_KEY) ?? "{}") as { project?: unknown; group?: unknown };
-    return { project: typeof v.project === "string" ? v.project : ALL, group: typeof v.group === "string" ? v.group : ALL };
-  } catch {
-    return { project: ALL, group: ALL };
-  }
-}
 
 const sameName = (a: string, b: string) => a.trim().toLocaleLowerCase("vi") === b.trim().toLocaleLowerCase("vi");
 const newNameOf = (t: ProjectTarget | null) => (t && "new_name" in t ? t.new_name : null);
@@ -570,12 +560,11 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  /** The draft as last opened or saved: closing with other content asks before dropping the edits. */
+  const [baseline, setBaseline] = useState("");
   const [isNew, setIsNew] = useState(false);
   const [importStep, setImportStep] = useState<{ step: "setup"; target: ProjectTarget | null } | { step: "preview"; preview: ImportPreview; target: ProjectTarget } | null>(null);
   const [deleting, setDeleting] = useState<{ testId: string; title: string; impact: DeleteImpact } | null>(null);
-  const [filter, setFilter] = useState("");
-  const [projectFilter, setProjectFilter] = useState<string>(() => readFilter().project);
-  const [groupFilter, setGroupFilter] = useState<string>(() => readFilter().group);
   const { run, busy } = useAction();
   const toast = useToast();
   const ask = useConfirm();
@@ -589,47 +578,47 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
   useEffect(() => {
     void load();
   }, [load]);
-  useEffect(() => {
-    localStorage.setItem(FILTER_KEY, JSON.stringify({ project: projectFilter, group: groupFilter }));
-  }, [projectFilter, groupFilter]);
 
-  const projectCases = useMemo(() => (projectFilter === ALL ? cases : cases.filter((c) => c.project_id === projectFilter)), [cases, projectFilter]);
-  const groupsInProject = useMemo(() => [...new Set(projectCases.map((c) => c.group_name))], [projectCases]);
-  useEffect(() => {
-    if (!loaded) return;
-    if (projectFilter !== ALL && !projects.some((p) => p.project_id === projectFilter)) setProjectFilter(ALL);
-    else if (groupFilter !== ALL && !groupsInProject.includes(groupFilter)) setGroupFilter(ALL);
-  }, [loaded, projects, projectFilter, groupFilter, groupsInProject]);
-
+  const filter = useCaseFilter(cases, projects, "testcases.filter", loaded);
+  const { sorted, sort, toggle } = useSort(filter.shown, CASE_COLUMNS);
   const current = useMemo(() => cases.find((c) => c.test_id === selected) ?? null, [cases, selected]);
-  useEffect(() => {
-    if (current && !isNew) {
-      setDraft({
-        test_id: current.test_id,
-        title: current.title,
-        steps: current.steps.join("\n"),
-        schema: current.input_schema,
-        sample: current.sample_input,
-        expected_result: current.expected_result,
-        group: current.group_name,
-        project: current.project_id ? { project_id: current.project_id } : null,
-      });
-    }
-  }, [current, isNew]);
+
+  const openDraft = (d: Draft, testId: string | null) => {
+    setIsNew(testId === null);
+    setSelected(testId);
+    setDraft(d);
+    setBaseline(JSON.stringify(d));
+  };
+  const openCase = (c: CaseRow) =>
+    openDraft(
+      {
+        test_id: c.test_id,
+        title: c.title,
+        steps: c.steps.join("\n"),
+        schema: c.input_schema,
+        sample: c.sample_input,
+        expected_result: c.expected_result,
+        group: c.group_name,
+        project: c.project_id ? { project_id: c.project_id } : null,
+      },
+      c.test_id,
+    );
+  const closeDraft = async () => {
+    if (draft && JSON.stringify(draft) !== baseline && !(await ask("Đóng mà không lưu các thay đổi của test case này?", { okText: "Bỏ thay đổi", cancelText: "Tiếp tục sửa", danger: true }))) return;
+    setDraft(null);
+    setSelected(null);
+    setIsNew(false);
+  };
 
   const issues = draft ? localIssues(draft, true) : [];
-  const q = filter.trim().toLowerCase();
-  const shown = projectCases.filter((c) => (groupFilter === ALL || c.group_name === groupFilter) && (!q || `${c.test_id} ${c.title}`.toLowerCase().includes(q)));
   const draftProjectId = draft ? targetProject(draft.project, projects)?.project_id : undefined;
   const draftGroups = [...new Set(cases.filter((c) => c.project_id === draftProjectId).map((c) => c.group_name))];
-  const filteredProject = projects.find((p) => p.project_id === projectFilter);
+  const filteredProject = projects.find((p) => p.project_id === filter.project);
   const defaultTarget = (): ProjectTarget | null => (filteredProject ? { project_id: filteredProject.project_id } : projects.length ? null : { new_name: "" });
   /** Makes sure a saved/imported case is visible under the current filters. */
   const reveal = (projectId: string | null, group: string) => {
-    if (projectFilter !== ALL && projectFilter !== projectId) {
-      setProjectFilter(projectId ?? ALL);
-      setGroupFilter(ALL);
-    } else if (groupFilter !== ALL && groupFilter !== group) setGroupFilter(ALL);
+    if (filter.project !== ALL && filter.project !== projectId) filter.setProject(projectId ?? ALL);
+    else if (filter.group !== ALL && filter.group !== group) filter.setGroup(ALL);
   };
 
   return (
@@ -653,20 +642,12 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
           </button>
           <button
             className="btn"
-            onClick={() => {
-              setIsNew(true);
-              setSelected(null);
-              setDraft({
-                test_id: "",
-                title: "",
-                steps: "",
-                schema: { fields: [] },
-                sample: {},
-                expected_result: "",
-                group: groupFilter === ALL ? "" : groupFilter,
-                project: defaultTarget(),
-              });
-            }}
+            onClick={() =>
+              openDraft(
+                { test_id: "", title: "", steps: "", schema: { fields: [] }, sample: {}, expected_result: "", group: filter.group === ALL ? "" : filter.group, project: defaultTarget() },
+                null,
+              )
+            }
           >
             Tạo test case
           </button>
@@ -675,35 +656,9 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
           </button>
         </div>
       </div>
-      <div className="split">
-        <Panel title={`Danh sách (${shown.length}/${cases.length})`} bodyClass="">
-          <div className="case-filters">
-            <select
-              aria-label="Lọc theo dự án"
-              value={projectFilter}
-              onChange={(e) => {
-                setProjectFilter(e.target.value);
-                setGroupFilter(ALL);
-              }}
-            >
-              <option value={ALL}>Tất cả dự án ({cases.length})</option>
-              {projects.map((p) => (
-                <option key={p.project_id} value={p.project_id}>
-                  {p.name} ({p.case_count})
-                </option>
-              ))}
-            </select>
-            <select aria-label="Lọc theo nhóm" value={groupFilter} onChange={(e) => setGroupFilter(e.target.value)}>
-              <option value={ALL}>Tất cả nhóm ({projectCases.length})</option>
-              {groupsInProject.map((g) => (
-                <option key={g} value={g}>
-                  {groupLabel(g)} ({projectCases.filter((c) => c.group_name === g).length})
-                </option>
-              ))}
-            </select>
-            <input type="text" placeholder="Lọc theo test_id hoặc title" value={filter} onChange={(e) => setFilter(e.target.value)} />
-          </div>
-          {shown.length === 0 ? (
+      <Panel title={`Test case (${filter.shown.length}/${cases.length})`} bodyClass="">
+        <CaseFilterBar filter={filter} />
+        {filter.shown.length === 0 ? (
             cases.length === 0 ? (
               <div className="empty">
                 Chưa có test case. Import file theo template gồm cột test_id, title, steps, input, expected_result.
@@ -725,7 +680,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
                         if (!(await ask(`Xoá dự án trống "${filteredProject.name}"?`, { okText: "Xoá", danger: true }))) return;
                         const ok = await run(() => api.deleteProject(filteredProject.project_id), "Đã xoá dự án");
                         if (ok) {
-                          setProjectFilter(ALL);
+                          filter.setProject(ALL);
                           void load();
                         }
                       }}
@@ -737,60 +692,82 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
               </div>
             )
           ) : (
-            <ul className="list scroll tall">
-              {shown.map((c) => (
-                <li
-                  key={c.test_id}
-                  className={c.test_id === selected ? "sel" : ""}
-                  onClick={() => {
-                    setIsNew(false);
-                    setSelected(c.test_id);
-                  }}
-                >
-                  <div className="line">
-                    <span className="mono">{c.test_id}</span>
-                    <span style={{ marginLeft: "auto" }}>{c.approved_count > 0 ? <Badge status="APPROVED" title={`${c.approved_count} version APPROVED`} /> : c.script_id ? <Badge status="DRAFT" /> : null}</span>
-                  </div>
-                  <span className="title">{c.title}</span>
-                  <span className="muted small clip">
-                    {projectFilter === ALL ? `${c.project_name || "—"} · ` : ""}
-                    {groupLabel(c.group_name)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {filteredProject && <FixturesBox key={filteredProject.project_id} project={filteredProject} />}
-        </Panel>
-        {draft ? (
-          <Panel
-            title={isNew ? "Test case mới" : draft.test_id}
-            actions={
-              !isNew && current ? (
-                <div className="row">
-                  <span className="muted small">Xác nhận {fmtTime(current.confirmed_at)}</span>
-                  <button className="btn sm" onClick={() => onTrain(current.test_id)}>
-                    Mở Training
-                  </button>
-                  <button className="btn sm" disabled={current.approved_count === 0} onClick={() => onTest(current.test_id)}>
-                    Mở Testing
-                  </button>
-                </div>
-              ) : undefined
-            }
-          >
-            <CaseEditor draft={draft} onChange={setDraft} lockId={!isNew} projects={projects} groups={draftGroups} projectId={draftProjectId} />
-            {issues.length > 0 && <div className="error-box" style={{ marginTop: 12 }}>{issues.join("\n")}</div>}
-            {!isNew && current?.raw_import && (
-              <details style={{ marginTop: 12 }}>
-                <summary className="muted small">Dữ liệu import gốc</summary>
-                <pre className="mono pre small">{JSON.stringify(current.raw_import, null, 2)}</pre>
-              </details>
-            )}
-            <div className="row end" style={{ marginTop: 14 }}>
+          <div className="table-wrap">
+            <table className="t case-table">
+              <thead>
+                <tr>
+                  <SortTh label="test_id" k="test_id" sort={sort} onSort={toggle} />
+                  <SortTh label="Title" k="title" sort={sort} onSort={toggle} className="wide" />
+                  {filter.project === ALL && <SortTh label="Dự án" k="project" sort={sort} onSort={toggle} />}
+                  <SortTh label="Nhóm" k="group" sort={sort} onSort={toggle} />
+                  <SortTh label="Bước" k="steps" sort={sort} onSort={toggle} className="num" />
+                  <th>Biến input</th>
+                  <SortTh label="Script" k="script" sort={sort} onSort={toggle} />
+                  <SortTh label="Test gần nhất" k="last_run" sort={sort} onSort={toggle} />
+                  <SortTh label="Xác nhận" k="confirmed" sort={sort} onSort={toggle} />
+                  <th aria-label="Thao tác" />
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((c) => (
+                  <tr key={c.test_id} className={`click ${c.test_id === selected ? "sel" : ""}`} onClick={() => openCase(c)}>
+                    <td className="mono nowrap">{c.test_id}</td>
+                    <td className="clip-cell" title={c.title}>
+                      {c.title}
+                    </td>
+                    {filter.project === ALL && <td className="nowrap">{c.project_name || "—"}</td>}
+                    <td className="nowrap">{groupLabel(c.group_name)}</td>
+                    <td className="num">{c.steps.length}</td>
+                    <td className="mono small clip-cell" title={c.input_schema.fields.map((f) => f.name).join(", ")}>
+                      {c.input_schema.fields.map((f) => f.name).join(", ") || "—"}
+                    </td>
+                    <td className="nowrap">
+                      <ScriptStatus c={c} />
+                    </td>
+                    <td className="nowrap">
+                      <LastRun run={c.last_run} />
+                    </td>
+                    <td className="small muted nowrap">{fmtTime(c.confirmed_at)}</td>
+                    <td className="row-actions" onClick={(e) => e.stopPropagation()}>
+                      <button className="btn sm" onClick={() => onTrain(c.test_id)}>
+                        Training
+                      </button>
+                      <button className="btn sm" disabled={c.approved_count === 0} title={c.approved_count ? undefined : "Chưa có version APPROVED"} onClick={() => onTest(c.test_id)}>
+                        Testing
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {filteredProject && <FixturesBox key={filteredProject.project_id} project={filteredProject} />}
+      </Panel>
+      {draft && (
+        <Modal
+          drawer
+          title={isNew ? "Test case mới" : draft.test_id}
+          onClose={() => void closeDraft()}
+          actions={
+            !isNew && current ? (
+              <div className="row">
+                <span className="muted small">Xác nhận {fmtTime(current.confirmed_at)}</span>
+                <button className="btn sm" onClick={() => onTrain(current.test_id)}>
+                  Mở Training
+                </button>
+                <button className="btn sm" disabled={current.approved_count === 0} onClick={() => onTest(current.test_id)}>
+                  Mở Testing
+                </button>
+              </div>
+            ) : undefined
+          }
+          footer={
+            <>
               {!isNew && current && (
                 <button
                   className="btn"
+                  style={{ marginRight: "auto" }}
                   disabled={busy}
                   onClick={async () => {
                     const impact = await run(() => api.testCaseDeleteImpact(current.test_id));
@@ -821,6 +798,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
                   if (saved) {
                     setIsNew(false);
                     setSelected(saved.test_id);
+                    setBaseline(JSON.stringify(draft));
                     await load();
                     reveal(saved.project_id, saved.group_name);
                   }
@@ -828,12 +806,19 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
               >
                 Lưu test case
               </button>
-            </div>
-          </Panel>
-        ) : (
-          <div className="panel empty">Chọn một test case để xem hoặc sửa.</div>
-        )}
-      </div>
+            </>
+          }
+        >
+          <CaseEditor draft={draft} onChange={setDraft} lockId={!isNew} projects={projects} groups={draftGroups} projectId={draftProjectId} />
+          {issues.length > 0 && <div className="error-box" style={{ marginTop: 12 }}>{issues.join("\n")}</div>}
+          {!isNew && current?.raw_import && (
+            <details style={{ marginTop: 12 }}>
+              <summary className="muted small">Dữ liệu import gốc</summary>
+              <pre className="mono pre small">{JSON.stringify(current.raw_import, null, 2)}</pre>
+            </details>
+          )}
+        </Modal>
+      )}
       {deleting && (
         <DeleteModal
           {...deleting}
@@ -865,8 +850,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
           onDone={async (projectId) => {
             setImportStep(null);
             await load();
-            setProjectFilter(projectId);
-            setGroupFilter(ALL);
+            filter.setProject(projectId);
           }}
         />
       )}

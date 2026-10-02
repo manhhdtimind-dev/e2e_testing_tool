@@ -150,18 +150,23 @@ export function Panel({ title, actions, children, bodyClass = "body" }: { title:
 /** Open modals, innermost last; only the innermost one closes on Escape. */
 const openModals: object[] = [];
 
+/** `drawer`: slides in from the right below the top bar, so the page behind (a table) and the navigation stay visible. */
 export function Modal({
   title,
   onClose,
   children,
   footer,
+  actions,
   small,
+  drawer,
 }: {
   title: ReactNode;
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  actions?: ReactNode;
   small?: boolean;
+  drawer?: boolean;
 }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -176,10 +181,11 @@ export function Modal({
     };
   }, []);
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal ${small ? "small" : ""}`} role="dialog" aria-modal="true">
+    <div className={`overlay ${drawer ? "drawer-wrap" : ""}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`modal ${small ? "small" : ""} ${drawer ? "drawer" : ""}`} role="dialog" aria-modal="true">
         <header>
           <h2>{title}</h2>
+          {actions}
           <button className="btn ghost" onClick={onClose} aria-label="Đóng">
             Đóng
           </button>

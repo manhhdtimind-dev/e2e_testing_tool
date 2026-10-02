@@ -35,7 +35,11 @@ Biến `{{name}}` trong steps phải có trong input. Schema tạo từ key củ
 Bấm Import mở modal chọn **dự án** có sẵn hoặc nhập tên dự án mới (trùng tên, không phân biệt hoa/thường ⇒ dùng dự án có sẵn;
 dự án mới chỉ được tạo khi xác nhận lưu). **Nhóm** = tên sheet: mọi sheet có cột `test_id` ở dòng 1 là một nhóm, sheet khác bị bỏ qua;
 `.csv`/`.yaml` là một nhóm theo tên file. `test_id` duy nhất trên mọi dự án: import bị chặn nếu `test_id` đã thuộc dự án khác,
-cùng dự án thì ghi đè. Danh sách Test Cases lọc theo dự án, nhóm và text. Test case có trước khi thêm dự án được đưa vào "Dự án mặc định".
+cùng dự án thì ghi đè. Test case có trước khi thêm dự án được đưa vào "Dự án mặc định".
+Trang Test Cases là một bảng (lọc theo dự án, nhóm, text — bộ lọc nhớ theo trang; bấm tiêu đề cột để sắp xếp): test_id, title, dự án (khi xem tất cả),
+nhóm, số bước, biến input, trạng thái script (APPROVED / DRAFT / chưa train), kết quả lần Testing gần nhất (`listTestCases` trả `latest_approved`
+và `last_run`), thời điểm xác nhận, nút Training/Testing trên từng dòng. Bấm dòng mở chi tiết trong khung trượt từ bên phải (`Modal drawer`, nằm dưới
+thanh điều hướng, bảng vẫn thấy phía sau); đóng khi còn thay đổi chưa lưu thì hỏi lại. Esc chỉ đóng hộp trong cùng.
 Steps có thể có bước "Chụp màn hình…" và "Đóng trình duyệt" (nhận diện cả khi không dấu, `src/core/stepDirectives.ts`): prompt Training
 liệt kê chính xác bước nào gọi `page.screenshot()` / `page.close()`; không có bước chụp ⇒ một ảnh sau bước cuối; không có bước đóng ⇒ script không đóng.
 Runner luôn chụp `page.screenshot()` cả trang từ trên xuống (ép `fullPage: true`, bỏ `clip`; ảnh của locator giữ nguyên). Trang kiểu app shell
@@ -135,6 +139,10 @@ Tạo version `vN` bất biến (lưu bản sao source).
 **Testing:** chọn version `APPROVED`, input theo schema → runner → `COMPLETED` (review `PENDING` → người dùng PASS/FAIL + ghi chú)
 hoặc `ERROR` với mã `LOCATOR | ACTION | TIMEOUT | AUTH_REQUIRED | DOMAIN_BLOCKED | EXCEPTION`. `LOCATOR/ACTION` →
 version `SUSPECTED_BROKEN`. Send to Training tạo attempt mới trong thread của script với lỗi/log làm context.
+Trang Testing: bảng test case (version APPROVED mới nhất, kết quả lần chạy gần nhất, nút "Chạy…" — tắt khi không còn version APPROVED) và
+bảng các lần chạy của test case đang chọn (mới nhất trước; thời gian, version, environment, kết quả, đánh giá, input, thời lượng). "Chạy…" mở hộp
+chọn version/environment/input; chạy xong tự mở khung trượt chi tiết lần chạy (evidence, lỗi, Send to Training, đánh giá PASS/FAIL).
+Nút Testing ở trang Test Cases mở thẳng hộp chạy của test case đó (intent có `nonce`, chỉ xử lý một lần).
 
 ## 4. Bảo mật
 

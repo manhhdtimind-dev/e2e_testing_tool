@@ -122,13 +122,14 @@ try {
   await shot("01-import-preview");
   await win.locator("tr", { hasText: "TC_BAD_002" }).getByRole("button", { name: "Bỏ" }).click();
   await win.getByRole("button", { name: "Xác nhận và lưu" }).click();
-  await win.locator(".list li", { hasText: "TC_CAMP_001" }).waitFor();
+  const caseRows = win.locator(".case-table tbody tr");
+  await caseRows.filter({ hasText: "TC_CAMP_001" }).waitFor();
   check(true, "Import: lưu test case sau khi bỏ dòng lỗi");
   const projectFilter = win.getByLabel("Lọc theo dự án");
   const groupFilter = win.getByLabel("Lọc theo nhóm");
   const selectedText = (loc) => loc.evaluate((el) => el.options[el.selectedIndex].text);
   check((await selectedText(projectFilter)).startsWith("Demo shop"), "Import: danh sách chuyển sang lọc dự án vừa import");
-  check((await win.locator(".list li", { hasText: "TC_CAMP_001" }).innerText()).includes("cases"), "CSV: nhóm = tên file (cases)");
+  check((await caseRows.filter({ hasText: "TC_CAMP_001" }).innerText()).includes("cases"), "CSV: nhóm = tên file (cases)");
 
   // Excel: every sheet with test_id is a group named after the sheet; test_id owned by another project is blocked.
   await app.evaluate(({ dialog }, p) => {
@@ -152,22 +153,42 @@ try {
   await shot("01b-import-xlsx-groups");
   await conflictRow.getByRole("button", { name: "Bỏ" }).click();
   await parseModal.getByRole("button", { name: "Xác nhận và lưu" }).click();
-  await win.locator(".list li", { hasText: "TC_CAMP_002" }).waitFor();
-  check((await selectedText(projectFilter)).startsWith("Dự án B") && (await win.locator(".list li").count()) === 1, "Excel: lưu vào Dự án B, danh sách lọc theo dự án đó");
+  await caseRows.filter({ hasText: "TC_CAMP_002" }).waitFor();
+  check((await selectedText(projectFilter)).startsWith("Dự án B") && (await caseRows.count()) === 1, "Excel: lưu vào Dự án B, danh sách lọc theo dự án đó");
 
   // Filters: project + group.
   await projectFilter.selectOption({ label: "Tất cả dự án (2)" });
-  check((await win.locator(".list li").count()) === 2, "Lọc: tất cả dự án hiện 2 test case");
+  check((await caseRows.count()) === 2, "Lọc: tất cả dự án hiện 2 test case");
+  const idHeader = win.locator(".case-table th", { hasText: "test_id" });
+  await idHeader.getByRole("button").click();
+  await idHeader.getByRole("button").click();
+  const desc = await caseRows.locator("td:first-child").allInnerTexts();
+  check((await idHeader.getAttribute("aria-sort")) === "descending" && desc.join() === "TC_CAMP_002,TC_CAMP_001", `Bảng: bấm tiêu đề cột để sắp xếp (${desc.join()})`);
+  await idHeader.getByRole("button").click();
   const groupOptions = await groupFilter.evaluate((el) => [...el.options].map((o) => o.text));
   check(groupOptions.some((t) => t.startsWith("Tìm kiếm campaign")) && groupOptions.some((t) => t.startsWith("cases")), `Lọc: danh sách nhóm theo dự án (${groupOptions.join(" | ")})`);
   await groupFilter.selectOption({ label: "Tìm kiếm campaign (1)" });
-  const onlyGroup = await win.locator(".list li").allInnerTexts();
+  const onlyGroup = await caseRows.allInnerTexts();
   check(onlyGroup.length === 1 && onlyGroup[0].includes("TC_CAMP_002"), "Lọc: theo nhóm chỉ còn TC_CAMP_002");
   await projectFilter.selectOption({ label: "Demo shop (1)" });
-  const onlyProject = await win.locator(".list li").allInnerTexts();
+  const onlyProject = await caseRows.allInnerTexts();
   check(onlyProject.length === 1 && onlyProject[0].includes("TC_CAMP_001") && (await selectedText(groupFilter)).startsWith("Tất cả nhóm"), "Lọc: đổi dự án thì bỏ lọc nhóm, chỉ còn TC_CAMP_001");
-  await win.locator(".list li", { hasText: "TC_CAMP_001" }).click();
-  check((await win.locator(".panel .field", { hasText: "Nhóm" }).locator("input").inputValue()) === "cases", "Chi tiết test case hiện nhóm");
+  const caseDrawer = win.locator(".modal.drawer");
+  await caseRows.filter({ hasText: "TC_CAMP_001" }).click();
+  check((await caseDrawer.locator(".field", { hasText: "Nhóm" }).locator("input").inputValue()) === "cases", "Chi tiết test case mở trong khung trượt, hiện nhóm");
+  const titleInput = caseDrawer.locator(".field", { hasText: "Title" }).locator("input").first();
+  const savedTitle = await titleInput.inputValue();
+  await titleInput.fill(`${savedTitle} (sửa dở)`);
+  await win.keyboard.press("Escape");
+  const discard = win.locator(".modal", { hasText: "Đóng mà không lưu các thay đổi của test case này?" });
+  await discard.waitFor();
+  await discard.getByRole("button", { name: "Tiếp tục sửa" }).click();
+  check((await titleInput.inputValue()).endsWith("(sửa dở)"), "Khung trượt: đóng khi chưa lưu thì hỏi lại, chọn Tiếp tục sửa giữ nguyên chỉnh sửa");
+  await caseDrawer.getByRole("button", { name: "Đóng", exact: true }).click();
+  await discard.getByRole("button", { name: "Bỏ thay đổi" }).click();
+  await caseDrawer.waitFor({ state: "detached" });
+  check((await caseRows.filter({ hasText: "TC_CAMP_001" }).innerText()).includes(savedTitle) && !(await caseRows.innerText()).includes("sửa dở"), "Khung trượt: Bỏ thay đổi đóng khung, không lưu");
+  await caseRows.filter({ hasText: "TC_CAMP_001" }).click();
   await shot("02-test-cases");
 
   // ---------- environment + runner auth ----------
@@ -297,31 +318,50 @@ try {
 
   // ---------- testing: completed + review ----------
   await nav("Testing");
-  await win.locator(".field", { hasText: "campaign_name" }).locator("input").fill("Summer_Sale_with_a_very_long_unbroken_campaign_name_2026");
-  await win.getByRole("button", { name: "Chạy test" }).click();
-  await win.locator(".expected").waitFor();
-  await win.getByText("ĐÁNH GIÁ CỦA NGƯỜI DÙNG").waitFor({ timeout: 90_000 });
-  check(true, "Test run COMPLETED, chờ người dùng đánh giá");
-  const runSlides = win.locator(".panel", { hasText: "Evidence" }).locator(".slides");
+  const testingRow = (id) => win.locator(".case-table tbody tr", { hasText: id });
+  check((await testingRow("TC_CAMP_002").getByRole("button", { name: "Chạy…" }).isDisabled()) && (await testingRow("TC_CAMP_002").innerText()).includes("Chưa có version APPROVED"), "Testing: test case chưa có version APPROVED không bấm Chạy được");
+  const startRun = async (campaign) => {
+    await testingRow("TC_CAMP_001").getByRole("button", { name: "Chạy…" }).click();
+    const dlg = win.locator(".modal", { hasText: "Chạy test — TC_CAMP_001" });
+    await dlg.waitFor();
+    if (campaign) await dlg.locator(".field", { hasText: "campaign_name" }).locator("input").fill(campaign);
+    await dlg.getByRole("button", { name: "Chạy test" }).click();
+    await dlg.waitFor({ state: "detached" });
+  };
+  const runDrawer = win.locator(".modal.drawer");
+  await startRun("Summer_Sale_with_a_very_long_unbroken_campaign_name_2026");
+  await runDrawer.locator(".expected").waitFor();
+  await runDrawer.getByText("ĐÁNH GIÁ CỦA NGƯỜI DÙNG").waitFor({ timeout: 90_000 });
+  check(true, "Test run COMPLETED, chờ người dùng đánh giá (khung trượt tự mở)");
+  const runSlides = runDrawer.locator(".panel", { hasText: "Evidence" }).locator(".slides");
   await runSlides.locator("img.shot").waitFor();
   check((await runSlides.locator(".slide-count").innerText()) === "1/2" && (await runSlides.locator(".slide-thumbs button").count()) === 2, "Testing: evidence hiện dạng slide 1/2");
-  const runList = await win.locator("ul.list.tall").evaluate((ul) => ({ scroll: ul.scrollWidth, client: ul.clientWidth }));
-  check(runList.scroll <= runList.client + 1, `Danh sách Test runs không tràn ngang với input dài (${runList.scroll}/${runList.client})`);
+  const runWrap = await win.locator(".run-table").evaluate((t) => ({ scroll: t.parentElement.scrollWidth, client: t.parentElement.clientWidth }));
+  check(runWrap.scroll <= runWrap.client + 1, `Bảng lần chạy không tràn ngang với input dài (${runWrap.scroll}/${runWrap.client})`);
   await shot("06-testing-completed");
-  await win.getByRole("button", { name: "PASS", exact: true }).click();
-  await win.locator(".panel .badge.pass", { hasText: /^PASS$/ }).first().waitFor();
-  check(true, "Đánh giá PASS được lưu");
+  await runDrawer.getByRole("button", { name: "PASS", exact: true }).click();
+  await runDrawer.locator(".panel .badge.pass", { hasText: /^PASS$/ }).first().waitFor();
+  await win.locator(".run-table tbody tr").first().locator(".badge.pass", { hasText: /^PASS$/ }).waitFor();
+  check(true, "Đánh giá PASS được lưu, bảng lần chạy cập nhật");
+  await win.keyboard.press("Escape");
+  await runDrawer.waitFor({ state: "detached" });
+  check((await testingRow("TC_CAMP_001").innerText()).includes("PASS"), "Bảng test case hiện kết quả lần chạy gần nhất");
 
   // ---------- broken locator ----------
   await fetch(`${BASE}/__admin/break?on=1`, { method: "POST" });
-  await win.getByRole("button", { name: "Chạy test" }).click();
-  await win.getByText("đã được đánh dấu SUSPECTED_BROKEN").waitFor({ timeout: 90_000 });
-  check(await win.locator(".badge.fail", { hasText: "LOCATOR" }).first().isVisible(), "Locator hỏng → ERROR LOCATOR");
+  await startRun(null);
+  await runDrawer.getByText("đã được đánh dấu SUSPECTED_BROKEN").waitFor({ timeout: 90_000 });
+  check(await runDrawer.locator(".badge.fail", { hasText: "LOCATOR" }).first().isVisible(), "Locator hỏng → ERROR LOCATOR");
   const state = await bridge("getScriptState", "TC_CAMP_001");
   check(state.versions[0]?.status === "SUSPECTED_BROKEN", "Version v1 chuyển SUSPECTED_BROKEN");
-  check(await win.getByRole("button", { name: "Chạy test" }).isDisabled(), "Không chạy được version không còn APPROVED");
   await shot("07-testing-locator-error");
-  await win.getByRole("button", { name: "Send to Training" }).click();
+  await win.keyboard.press("Escape");
+  await runDrawer.waitFor({ state: "detached" });
+  await testingRow("TC_CAMP_001").locator("button:disabled", { hasText: "Chạy…" }).waitFor({ timeout: 5000 });
+  check((await win.locator(".run-table tbody tr").count()) === 2, "Không chạy được version không còn APPROVED; bảng có 2 lần chạy");
+  await shot("07a-testing-tables");
+  await win.locator(".run-table tbody tr").first().click();
+  await runDrawer.getByRole("button", { name: "Send to Training" }).click();
   await win.getByText("Ngữ cảnh gửi kèm").waitFor();
   check(true, "Send to Training mở Training với ngữ cảnh test run");
   check(await win.getByRole("button", { name: "Training lại từ đầu" }).isVisible(), "Có nút Training lại từ đầu khi đã có lượt Training");
@@ -525,8 +565,19 @@ try {
   // ---------- delete an approved test case with its history ----------
   await nav("Test Cases");
   await win.getByLabel("Lọc theo dự án").selectOption({ label: "Tất cả dự án (2)" });
-  await win.locator(".list li", { hasText: "TC_CAMP_001" }).click();
-  await win.locator(".panel .row.end").getByRole("button", { name: "Xoá", exact: true }).click();
+  check((await caseRows.filter({ hasText: "TC_CAMP_001" }).innerText()).includes("LOCATOR"), "Bảng Test Cases: cột Test gần nhất hiện ERROR LOCATOR");
+  await shot("11a-test-cases-table");
+  await caseRows.filter({ hasText: "TC_CAMP_001" }).getByRole("button", { name: "Testing", exact: true }).click();
+  const intentDlg = win.locator(".modal", { hasText: "Chạy test — TC_CAMP_001" });
+  await intentDlg.waitFor();
+  await intentDlg.getByRole("button", { name: "Huỷ" }).click();
+  await nav("Training");
+  await nav("Testing");
+  await win.locator(".case-table tbody tr").first().waitFor();
+  check((await intentDlg.count()) === 0, "Nút Testing trên dòng mở hộp Chạy test đúng một lần (quay lại Testing không mở lại)");
+  await nav("Test Cases");
+  await caseRows.filter({ hasText: "TC_CAMP_001" }).click();
+  await win.locator(".modal.drawer footer").getByRole("button", { name: "Xoá", exact: true }).click();
   const del = win.locator(".modal", { hasText: "Xoá test case TC_CAMP_001" });
   await del.waitFor();
   const delText = await del.innerText();
@@ -537,7 +588,8 @@ try {
   await del.getByRole("textbox").fill("TC_CAMP_001");
   await delBtn.click();
   await del.waitFor({ state: "detached" });
-  const remaining = await win.locator(".list li").allInnerTexts();
+  await win.locator(".modal.drawer").waitFor({ state: "detached" });
+  const remaining = await caseRows.allInnerTexts();
   check(remaining.length === 1 && remaining[0].includes("TC_CAMP_002"), "Xoá: test case đã approved biến mất khỏi danh sách");
   await nav("History");
   await win.waitForTimeout(500);
@@ -569,8 +621,8 @@ try {
   });
   await nav("Training");
   await nav("Test Cases");
-  await win.locator(".list li", { hasText: "TC_UPLOAD_001" }).click();
-  const fieldRow = win.locator("table.t tr", { has: win.locator("input.mono") }).first();
+  await caseRows.filter({ hasText: "TC_UPLOAD_001" }).click();
+  const fieldRow = win.locator(".modal.drawer table.t tr", { has: win.locator("input.mono") }).first();
   check(
     (await fieldRow.locator("select").first().inputValue()) === "file" && (await win.getByLabel("File mẫu", { exact: true }).inputValue()) === "banner-smoke.png",
     "Schema: biến kiểu file, giá trị mẫu chọn từ file mẫu của dự án",

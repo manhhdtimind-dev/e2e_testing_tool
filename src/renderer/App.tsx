@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TestCasesPage } from "./pages/TestCasesPage";
 import { EnvironmentsPage } from "./pages/EnvironmentsPage";
 import { TrainingPage, type TrainingIntent } from "./pages/TrainingPage";
-import { TestingPage } from "./pages/TestingPage";
+import { TestingPage, type TestingIntent } from "./pages/TestingPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -19,14 +19,14 @@ const WORKFLOW: { id: PageId; label: string }[] = [
 export function App() {
   const [page, setPage] = useState<PageId>("cases");
   const [trainingIntent, setTrainingIntent] = useState<TrainingIntent | null>(null);
-  const [testingIntent, setTestingIntent] = useState<{ test_id: string } | null>(null);
+  const [testingIntent, setTestingIntent] = useState<TestingIntent | null>(null);
 
   const openTraining = (intent: TrainingIntent) => {
     setTrainingIntent({ ...intent, nonce: Date.now() });
     setPage("training");
   };
   const openTesting = (testId: string) => {
-    setTestingIntent({ test_id: testId });
+    setTestingIntent({ test_id: testId, nonce: Date.now() });
     setPage("testing");
   };
 
