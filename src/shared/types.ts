@@ -102,6 +102,8 @@ export interface TrainingAttempt {
   kind: AttemptKind;
   prompt: string;
   context_ref: string | null;
+  /** Candidate the turn starts from ("Gửi prompt" edits the one the user has open); null = written from the test case. */
+  base_candidate_id: string | null;
   sample_input: InputValues;
   status: AttemptStatus;
   preflight_status: PreflightStatus | null;

@@ -364,8 +364,14 @@ try {
   await runDrawer.getByRole("button", { name: "Send to Training" }).click();
   await win.getByText("Ngữ cảnh gửi kèm").waitFor();
   check(true, "Send to Training mở Training với ngữ cảnh test run");
-  check(await win.getByRole("button", { name: "Training lại từ đầu" }).isVisible(), "Có nút Training lại từ đầu khi đã có lượt Training");
+  const trainHint = win.getByText("Ghi thao tác và Agent Training Auto tạo một script mới");
+  const trainButtons = await win.locator(".panel", { has: trainHint }).getByRole("button").allInnerTexts();
+  check(
+    ["Ghi thao tác…", "Agent Training Auto", "Gửi prompt"].every((b) => trainButtons.includes(b)) && /Gửi prompt sửa candidate #\d+/.test(await trainHint.innerText()),
+    `Training có 3 nút Ghi thao tác / Agent Training Auto / Gửi prompt, ghi rõ candidate đang sửa (${trainButtons.join(" | ")})`,
+  );
   await shot("08-send-to-training");
+  await win.locator(".panel", { has: trainHint }).screenshot({ path: join(shots, "08a-training-buttons.png") });
 
   // ---------- manual edit of a candidate ----------
   await win.getByRole("button", { name: "Sửa code" }).click();
@@ -407,7 +413,10 @@ try {
   const banner = win.locator(".rec-banner");
   await banner.getByText("Đang ghi thao tác cho TC_CAMP_001").waitFor({ timeout: 30_000 });
   check((await banner.innerText()).includes("Bước 1/7"), "Ghi thao tác: mở Chrome, trang Training hiện đang ghi ở bước 1/7");
-  check(await win.getByRole("button", { name: "Gửi prompt" }).isDisabled(), "Ghi thao tác: không gửi prompt Training được trong lúc ghi");
+  check(
+    (await win.getByRole("button", { name: "Gửi prompt" }).isDisabled()) && (await win.getByRole("button", { name: "Agent Training Auto" }).isDisabled()),
+    "Ghi thao tác: không chạy Agent Training Auto / Gửi prompt được trong lúc ghi",
+  );
   const recBrowser = await chromium.connectOverCDP(`http://127.0.0.1:${RECORDING_CDP_PORT}`);
   try {
     const rp = recBrowser.contexts().flatMap((c) => c.pages()).find((p) => p.url().startsWith(BASE));

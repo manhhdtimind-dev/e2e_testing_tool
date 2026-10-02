@@ -188,6 +188,7 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE candidates ADD COLUMN origin TEXT NOT NULL DEFAULT 'ai';
   UPDATE candidates SET origin = 'manual' WHERE attempt_id IS NULL;
   `,
+  `ALTER TABLE training_attempts ADD COLUMN base_candidate_id TEXT;`,
 ];
 
 export type Row = Record<string, unknown>;

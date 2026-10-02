@@ -192,9 +192,17 @@ ${rulesBlock(tc, maxActions)}
 ${extra ? `\n${extra}\n` : ""}${userPrompt.trim() ? `\n## Additional instructions from the user\n${userPrompt.trim()}` : ""}`;
 }
 
+/** Which saved revision is in candidate.ts; says so when the user chose an older one than the newest. */
+function baseRevisionNote(revisionNo: number, latestNo: number | null | undefined): string {
+  return latestNo && latestNo !== revisionNo
+    ? `candidate revision #${revisionNo}, the revision the user chose to edit (newer revisions up to #${latestNo} exist; do not carry over their changes unless the user asks)`
+    : `candidate revision #${revisionNo} (the latest saved version)`;
+}
+
 export function revisePrompt(opts: {
   userPrompt: string;
   revisionNo: number | null;
+  latestNo?: number | null;
   sample: InputValues;
   tc: TestCase;
   lastRun: RunContext | null;
@@ -204,7 +212,7 @@ export function revisePrompt(opts: {
   return `Revise the test script.
 ${UNATTENDED_NOTE}
 
-${opts.revisionNo ? `\`${CANDIDATE_FILE}\` in the working directory contains candidate revision #${opts.revisionNo} (the latest saved version). Edit it in place.` : `\`${CANDIDATE_FILE}\` does not exist yet; create it.`}
+${opts.revisionNo ? `\`${CANDIDATE_FILE}\` in the working directory contains ${baseRevisionNote(opts.revisionNo, opts.latestNo)}. Edit it in place.` : `\`${CANDIDATE_FILE}\` does not exist yet; create it.`}
 Sample input for this turn: ${JSON.stringify(opts.sample)}
 ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}\n` : ""}${opts.extra ? `\n${opts.extra}\n` : ""}
 ## User request
@@ -222,6 +230,7 @@ export function bootstrapPrompt(opts: {
   sample: InputValues;
   maxActions: number;
   revisionNo: number | null;
+  latestNo?: number | null;
   promptHistory: string[];
   lastRun: RunContext | null;
   userPrompt: string;
@@ -235,7 +244,7 @@ ${UNATTENDED_NOTE}
 ${testCaseBlock(opts.tc, opts.env, opts.sample)}
 
 ## Saved training state
-${opts.revisionNo ? `- \`${CANDIDATE_FILE}\` in the working directory contains the latest candidate revision #${opts.revisionNo}. Start from it.` : `- No candidate script exists yet.`}
+${opts.revisionNo ? `- \`${CANDIDATE_FILE}\` in the working directory contains ${baseRevisionNote(opts.revisionNo, opts.latestNo)}. Start from it.` : `- No candidate script exists yet.`}
 ${history ? `- earlier user prompts (oldest first):\n${history}` : "- no earlier user prompts"}
 ${opts.lastRun ? `\n${runContextBlock(opts.lastRun)}` : ""}
 

@@ -67,6 +67,8 @@ export interface StartTrainingRequest {
   context_ref?: { type: "trial" | "test_run"; id: string } | null;
   /** Start over from the test case: new provider thread, previous candidates are not given to the agent. */
   fresh?: boolean;
+  /** Candidate to revise (defaults to the newest one); ignored with `fresh`. */
+  base_candidate_id?: string | null;
 }
 
 const busyProfiles = new Set<string>();
@@ -114,13 +116,19 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
 
   const script = getOrCreateScript(ctx, tc.test_id, req.agent);
   if (busyScripts.has(script.script_id)) throw new AppError("Script này đang có một lượt Training chạy");
-  const hasHistory = ctx.repo.attempts.where("script_id = ?", script.script_id).length > 0 || !!latestCandidate(ctx, script.script_id);
+  const latest = latestCandidate(ctx, script.script_id);
+  const hasHistory = ctx.repo.attempts.where("script_id = ?", script.script_id).length > 0 || !!latest;
+  let base: CandidateRevision | undefined;
+  if (!req.fresh) {
+    base = req.base_candidate_id ? ctx.repo.candidates.get(req.base_candidate_id) : latest;
+    if (req.base_candidate_id && base?.script_id !== script.script_id) throw new AppError("Candidate cần sửa không thuộc test case này");
+  }
   const activeThread = script.training_thread_id ? ctx.repo.threads.get(script.training_thread_id) : undefined;
   let kind: AttemptKind = hasHistory ? "revise" : "initial";
   if (req.context_ref?.type === "test_run") kind = "from_test_run";
   if (activeThread && activeThread.provider !== req.agent) kind = "switch_agent";
-  if (req.fresh) kind = "retrain";
-  const contextRef = kind === "retrain" ? null : req.context_ref;
+  if (req.fresh && hasHistory) kind = "retrain";
+  const contextRef = req.fresh ? null : req.context_ref;
 
   const attempt: TrainingAttempt = {
     attempt_id: newId("att"),
@@ -132,6 +140,7 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
     kind,
     prompt: req.prompt,
     context_ref: contextRef ? `${contextRef.type}:${contextRef.id}` : null,
+    base_candidate_id: base?.candidate_id ?? null,
     sample_input: Object.fromEntries(Object.entries(req.sample_input).filter(([k]) => tc.input_schema.fields.some((f) => f.name === k && !f.secret))),
     status: "QUEUED",
     preflight_status: null,
@@ -152,6 +161,7 @@ export function startTraining(ctx: AppContext, req: StartTrainingRequest): Train
     environment_id: env.environment_id,
     kind,
     prompt: req.prompt,
+    base_revision: base?.revision_no ?? null,
   });
   busyProfiles.add(profile.browser_profile_id);
   busyScripts.add(script.script_id);
@@ -385,11 +395,12 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     mkdirSync(workspace, { recursive: true });
     const candidatePath = join(workspace, CANDIDATE_FILE);
     const latest = latestCandidate(ctx, script.script_id);
-    if (latest && !retrain) writeFileSync(candidatePath, latest.source);
+    const base = retrain ? undefined : ((attempt.base_candidate_id ? ctx.repo.candidates.get(attempt.base_candidate_id) : undefined) ?? latest);
+    if (base) writeFileSync(candidatePath, base.source);
     else rmSync(candidatePath, { force: true });
 
     const refs = writeProjectReferences(ctx, tc, workspace);
-    const fromScratch = retrain || !latest;
+    const fromScratch = retrain || !base;
     const verifyPlan = refs.length && fromScratch ? verificationInput(ctx, tc, env, attempt.sample_input) : null;
     const draftMode = !!verifyPlan?.input;
     const projectBlock = refs.length ? projectReferencesBlock({ testIds: refs.map((r) => r.test_id), draft: draftMode }) : "";
@@ -407,20 +418,21 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
     if (uploadFiles.length) emitEvent({ ts: now(), kind: "status", text: `File mẫu để tải lên: ${uploadFiles.map((f) => f.name).join(", ")}.` });
     const extra = [projectBlock, fileInputsBlock(uploadFiles)].filter(Boolean).join("\n\n");
 
-    const lastRun = runContextFor(ctx, attempt.context_ref, latest);
+    const lastRun = runContextFor(ctx, attempt.context_ref, base);
     const priorPrompts = ctx.repo.attempts
       .where("script_id = ? AND attempt_id != ? ORDER BY created_at", script.script_id, attempt.attempt_id)
       .map((a) => a.prompt)
       .filter(Boolean);
     const buildPrompt = (fresh: boolean, reason: string) => {
       if (retrain) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, extra);
-      if (fresh && (latest || priorPrompts.length)) {
+      if (fresh && (base || priorPrompts.length)) {
         return bootstrapPrompt({
           tc,
           env,
           sample: attempt.sample_input,
           maxActions: settings.training_max_actions,
-          revisionNo: latest?.revision_no ?? null,
+          revisionNo: base?.revision_no ?? null,
+          latestNo: latest?.revision_no ?? null,
           promptHistory: priorPrompts,
           lastRun,
           userPrompt: attempt.prompt,
@@ -431,7 +443,8 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       if (fresh) return initialPrompt(tc, env, attempt.sample_input, settings.training_max_actions, attempt.prompt, extra);
       return revisePrompt({
         userPrompt: attempt.prompt,
-        revisionNo: latest?.revision_no ?? null,
+        revisionNo: base?.revision_no ?? null,
+        latestNo: latest?.revision_no ?? null,
         sample: attempt.sample_input,
         tc,
         lastRun,
@@ -581,10 +594,11 @@ async function executeAttempt(ctx: AppContext, attempt: TrainingAttempt, tc: Tes
       return;
     }
     const hash = sha256(source);
-    if (latest && latest.source_hash === hash) {
+    const unchangedFrom = base ?? latest;
+    if (unchangedFrom && unchangedFrom.source_hash === hash) {
       updateAttempt(ctx, attempt, {
         status: "FAILED",
-        error: verdict.status === "blocked" ? `Agent dừng: ${verdict.reason}` : `Agent không thay đổi ${CANDIDATE_FILE} so với revision #${latest.revision_no}`,
+        error: verdict.status === "blocked" ? `Agent dừng: ${verdict.reason}` : `Agent không thay đổi ${CANDIDATE_FILE} so với revision #${unchangedFrom.revision_no}`,
       });
       return;
     }

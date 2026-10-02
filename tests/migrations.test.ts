@@ -38,6 +38,7 @@ describe("migrations", () => {
       { candidate_id: "c1", origin: "ai" },
       { candidate_id: "c2", origin: "manual" },
     ]);
+    expect(db.all("PRAGMA table_info(training_attempts)").some((c) => c.name === "base_candidate_id")).toBe(true);
     db.raw.close();
   });
 

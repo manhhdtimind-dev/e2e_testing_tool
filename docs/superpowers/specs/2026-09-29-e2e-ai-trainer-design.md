@@ -58,7 +58,7 @@ trả `CONNECTED | PROFILE_UNAVAILABLE`. Không có bước kiểm tra đăng nh
 agent tự báo `auth_required` nếu gặp trang đăng nhập trong lúc Training.
 
 **Training attempt:** khóa profile → preflight → đảm bảo script + provider thread (tạo thread mới khi đổi agent hoặc
-thread hỏng, `supersedes_thread_id`) → chuẩn bị workspace `workspaces/<script_id>/` với `candidate.ts` mới nhất →
+thread hỏng, `supersedes_thread_id`) → chuẩn bị workspace `workspaces/<script_id>/` với `candidate.ts` là candidate gốc →
 gửi prompt qua adapter (MCP Playwright được cấp, `--allowed-origins`, `--output-dir` riêng cho attempt) → ghi mọi
 tool event vào action log → đọc `candidate.ts` → validate AST (hàm `run(page, input)`, chỉ `input.<field>` thuộc schema,
 không hardcode input mẫu/secret, không toạ độ chuột, không import/API ngoài danh sách cho phép) → nếu lỗi gửi lại tối đa 2
@@ -67,10 +67,16 @@ Codex nhận mức suy nghĩ từ Cài đặt `codex_reasoning_effort` (`low | m
 `~/.codex/config.toml` của người dùng). Đo trên các lượt thật, 85–99% thời gian Training là thời gian model suy nghĩ, nên đây là đòn bẩy
 chính về tốc độ và chi phí; cấu hình cá nhân mức cao (ví dụ `ultra`) làm Training rất chậm.
 
+**Ba nút Training (luôn hiện):** **Ghi thao tác** (người dùng tự làm mẫu, tạo script mới), **Agent Training Auto** (`fresh`: AI viết script mới
+từ test case, thread mới, không đưa candidate cũ, không gửi ngữ cảnh lỗi; kind `retrain` khi đã có lịch sử, `initial` khi chưa) và **Gửi prompt**
+(AI sửa candidate đang mở ở khung Candidate — `base_candidate_id`, không phải luôn bản mới nhất; cần có candidate và prompt hoặc ngữ cảnh lỗi từ Testing).
+Candidate gốc lưu ở `training_attempts.base_candidate_id`: được ghi vào `candidate.ts`, dùng lấy Trial gần nhất làm ngữ cảnh, so "không thay đổi",
+và làm mốc "So với #N" của candidate mới. Revision mới luôn là số lớn nhất + 1; nếu gốc cũ hơn bản mới nhất, prompt nói rõ không mang theo thay đổi của các bản sau.
+
 **Tham chiếu theo dự án (Cài đặt `training_project_refs`, mặc định bật):** mỗi lượt Training ghi lại `workspaces/<script_id>/reference/`
 từ version APPROVED mới nhất của các test case khác cùng dự án (tối đa 6 script / 60 KB, xếp theo độ giống của tiêu đề + steps, cùng nhóm được cộng điểm;
 `src/core/projectReferences.ts`), kèm `README.md` liệt kê steps, trang (`goto`/`waitForURL`) và locator đọc từ AST. Prompt dặn agent dùng lại
-điều hướng/locator, không chép dữ liệu. Khi script bắt đầu từ đầu (chưa có candidate hoặc Training lại từ đầu), environment có runner auth và đủ secret
+điều hướng/locator, không chép dữ liệu. Khi script bắt đầu từ đầu (chưa có candidate hoặc Agent Training Auto), environment có runner auth và đủ secret
 ⇒ **soạn nháp**: agent viết thẳng phần đã có trong tham chiếu, chỉ dùng MCP cho trang chưa có; app chạy `candidate.ts` bằng runner (ẩn, không slowMo,
 input mẫu + secret của environment, artifact trong thư mục attempt), lỗi thì gửi log cho agent sửa trong cùng thread (tối đa 2 vòng, `draftVerify.ts`).
 Candidate là đúng source của lần chạy cuối và lần chạy đó được lưu thành Trial của candidate (`trial.training_verify`).

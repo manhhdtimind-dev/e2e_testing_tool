@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pickReferences, referenceFile, referenceFileName, referenceIndex, summarizeScript, type ReferenceScript } from "../src/core/projectReferences";
 import { verifyDraft, type VerifyRun } from "../src/main/training/draftVerify";
-import { initialPrompt, projectReferencesBlock, verifyFailPrompt } from "../src/main/training/prompt";
+import { bootstrapPrompt, initialPrompt, projectReferencesBlock, revisePrompt, verifyFailPrompt } from "../src/main/training/prompt";
 import type { Environment, TestCase } from "../src/shared/types";
 
 const CREATE = `import { expect, type Page } from "@playwright/test";
@@ -72,6 +72,16 @@ describe("prompts with project references", () => {
     const prompt = initialPrompt(tc, env, {}, 80, "", draft);
     expect(prompt.indexOf("Draft first")).toBeGreaterThan(prompt.indexOf("## How to work"));
     expect(initialPrompt(tc, env, {}, 80, "")).not.toContain("reference/");
+  });
+
+  it("tells the agent which revision it edits when the user picked an older one than the newest", () => {
+    const base = { userPrompt: "sửa step 4", sample: {}, tc, lastRun: null, maxActions: 50 };
+    expect(revisePrompt({ ...base, revisionNo: 3, latestNo: 3 })).toContain("candidate revision #3 (the latest saved version)");
+    const older = revisePrompt({ ...base, revisionNo: 1, latestNo: 3 });
+    expect(older).toContain("candidate revision #1, the revision the user chose to edit (newer revisions up to #3 exist");
+    expect(older).not.toContain("latest saved version");
+    const boot = bootstrapPrompt({ tc, env, sample: {}, maxActions: 50, revisionNo: 2, latestNo: 4, promptHistory: [], lastRun: null, userPrompt: "", reason: "r" });
+    expect(boot).toContain("candidate revision #2, the revision the user chose to edit (newer revisions up to #4 exist");
   });
 
   it("sends the verification failure with masked input and the step directives", () => {

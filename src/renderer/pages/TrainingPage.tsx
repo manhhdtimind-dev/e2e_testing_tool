@@ -207,7 +207,8 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
 
   const attempt = state?.attempts.find((a) => a.attempt_id === attemptId) ?? null;
   const candidate = state?.candidates.find((c) => c.candidate_id === candidateId) ?? null;
-  const previous = candidate ? state?.candidates.find((c) => c.revision_no === candidate.revision_no - 1) : undefined;
+  const baseId = candidate?.attempt_id ? state?.attempts.find((a) => a.attempt_id === candidate.attempt_id)?.base_candidate_id : null;
+  const previous = candidate ? state?.candidates.find((c) => (baseId ? c.candidate_id === baseId : c.revision_no === candidate.revision_no - 1)) : undefined;
   const candidateTrials = useMemo(() => (state?.trials ?? []).filter((t) => t.candidate_id === candidateId), [state, candidateId]);
   const trial = candidateTrials.find((t) => t.trial_id === trialId) ?? candidateTrials[0] ?? null;
   const runningAttempt = state?.attempts.find((a) => a.status === "RUNNING" || a.status === "QUEUED") ?? null;
@@ -262,8 +263,10 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
 
   const integrationNote = integration && !integration[agent]?.ok ? `Adapter ${AGENT_LABEL[agent]} chưa qua kiểm tra tích hợp trên máy này (Cài đặt → Kiểm tra tích hợp).` : null;
 
-  const start = async (fresh = false) => {
+  /** auto: the agent writes a new script from the test case; revise: the agent edits the candidate that is open. */
+  const start = async (mode: "auto" | "revise") => {
     if (!tc || !env || !profileId) return;
+    if (mode === "revise" && !candidate) return;
     const a = await run(
       () =>
         api.startTraining({
@@ -273,10 +276,11 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
           browser_profile_id: profileId,
           sample_input: sample,
           prompt,
-          context_ref: fresh ? null : (contextRef ?? null),
-          fresh,
+          context_ref: mode === "revise" ? (contextRef ?? null) : null,
+          fresh: mode === "auto",
+          base_candidate_id: mode === "revise" ? candidate!.candidate_id : null,
         }),
-      fresh ? "Đã bắt đầu Training lại từ đầu" : "Đã bắt đầu lượt Training",
+      mode === "auto" ? "Đã bắt đầu Agent Training Auto" : `Đã gửi prompt sửa candidate #${candidate!.revision_no}`,
     );
     if (a) {
       setAttemptId(a.attempt_id);
@@ -577,10 +581,10 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
               </Modal>
             )}
 
-            <Panel title={state?.candidates.length ? "Prompt sửa / training lại" : "Bắt đầu Training"}>
+            <Panel title="Training">
               {contextRef && (
                 <div className="info-box" style={{ marginBottom: 10 }}>
-                  Ngữ cảnh gửi kèm: {contextLabel || `${contextRef.type} ${contextRef.id}`}{" "}
+                  Ngữ cảnh gửi kèm khi Gửi prompt: {contextLabel || `${contextRef.type} ${contextRef.id}`}{" "}
                   <button className="btn sm ghost" onClick={() => setContextRef(null)}>
                     Bỏ
                   </button>
@@ -595,10 +599,26 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
               <textarea
                 rows={4}
                 style={{ width: "100%", marginTop: 10 }}
-                placeholder={state?.candidates.length ? "Mô tả điều cần sửa, ví dụ: Step 4 phải chọn Objective trong dropdown thay vì gõ chữ" : "Ghi chú thêm cho AI (tuỳ chọn)"}
+                placeholder={
+                  candidate
+                    ? `Gửi prompt: mô tả điều cần sửa ở candidate #${candidate.revision_no}, ví dụ: Step 4 phải chọn Objective trong dropdown thay vì gõ chữ.\nAgent Training Auto: ghi chú thêm cho AI (tuỳ chọn).`
+                    : "Ghi chú thêm cho AI khi Agent Training Auto (tuỳ chọn)"
+                }
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
               />
+              <div className="small muted" style={{ marginTop: 6 }}>
+                Ghi thao tác và Agent Training Auto tạo một script mới; Gửi prompt sửa{" "}
+                {candidate ? (
+                  <strong>
+                    candidate #{candidate.revision_no}
+                    {candidate.origin === "recorded" ? " (ghi thao tác)" : candidate.origin === "manual" ? " (sửa tay)" : ""}
+                  </strong>
+                ) : (
+                  "candidate đang mở"
+                )}{" "}
+                — chọn candidate khác ở khung Candidate.
+              </div>
               <div className="row" style={{ marginTop: 10 }}>
                 <span className="muted small">
                   Agent {AGENT_LABEL[agent]} · Profile {profiles.find((p) => p.browser_profile_id === profileId)?.display_name ?? "—"}
@@ -612,7 +632,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 <button
                   className="btn"
                   disabled={busy || !!runningAttempt || recActive || !envId}
-                  title="Tự thao tác trên trình duyệt; app ghi lại thành script (không dùng AI)"
+                  title="Tự thao tác trên trình duyệt; app ghi lại thành một script mới (không dùng AI)"
                   onClick={() => {
                     setRecInput(tc.sample_input);
                     setRecOpen(true);
@@ -620,18 +640,27 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                 >
                   Ghi thao tác…
                 </button>
-                {!!state?.attempts.length && (
-                  <button
-                    className="btn"
-                    disabled={busy || !!runningAttempt || recHere || !profileId || !envId}
-                    onClick={() => start(true)}
-                    title="Tạo phiên AI mới, viết lại script từ test case; không dùng candidate cũ. Prompt (nếu có) được gửi kèm."
-                  >
-                    Training lại từ đầu
-                  </button>
-                )}
-                <button className="btn primary" disabled={busy || !!runningAttempt || recHere || !profileId || !envId} onClick={() => start()}>
-                  {state?.candidates.length ? "Gửi prompt" : "Agent Training Auto"}
+                <button
+                  className={`btn ${candidate ? "" : "primary"}`}
+                  disabled={busy || !!runningAttempt || recHere || !profileId || !envId}
+                  onClick={() => start("auto")}
+                  title="AI agent viết một script mới từ test case (phiên AI mới, không dùng candidate cũ). Prompt (nếu có) được gửi kèm."
+                >
+                  Agent Training Auto
+                </button>
+                <button
+                  className={`btn ${candidate ? "primary" : ""}`}
+                  disabled={busy || !!runningAttempt || recHere || !profileId || !envId || !candidate || (!prompt.trim() && !contextRef)}
+                  onClick={() => start("revise")}
+                  title={
+                    !candidate
+                      ? "Chưa có candidate để sửa"
+                      : !prompt.trim() && !contextRef
+                        ? "Nhập điều cần sửa vào ô prompt"
+                        : `AI agent sửa candidate #${candidate.revision_no} theo prompt, tạo revision mới`
+                  }
+                >
+                  Gửi prompt
                 </button>
               </div>
             </Panel>
