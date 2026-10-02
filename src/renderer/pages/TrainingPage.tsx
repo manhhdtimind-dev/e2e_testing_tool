@@ -454,7 +454,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
               }
             >
               {!candidate ? (
-                <div className="empty">Chưa có candidate. Bắt đầu Training để AI tạo script, hoặc Ghi thao tác để tự làm mẫu trên trình duyệt.</div>
+                <div className="empty">Chưa có candidate. Bấm Agent Training Auto để AI tạo script, hoặc Ghi thao tác để tự làm mẫu trên trình duyệt.</div>
               ) : (
                 <CandidateView
                   key={candidate.candidate_id}
@@ -631,7 +631,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
                   </button>
                 )}
                 <button className="btn primary" disabled={busy || !!runningAttempt || recHere || !profileId || !envId} onClick={() => start()}>
-                  {state?.candidates.length ? "Gửi prompt" : "Bắt đầu Training"}
+                  {state?.candidates.length ? "Gửi prompt" : "Agent Training Auto"}
                 </button>
               </div>
             </Panel>
