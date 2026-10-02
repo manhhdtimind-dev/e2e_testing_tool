@@ -46,6 +46,9 @@ Runner luôn chụp `page.screenshot()` cả trang từ trên xuống (ép `full
 (menu cố định, layout `100vh`, nội dung cuộn trong khung `overflow: auto`) thì document không cuộn nên `fullPage` không thấy phần dưới: `src/runner/fullPage.ts`
 tìm khung cuộn chính (≥ 40% rộng, ≥ 50% cao của viewport ban đầu), tạm kéo cao viewport thêm đúng phần bị ẩn (tối đa 16000px, lặp ≤ 3 lần), chụp rồi trả
 viewport cũ; nếu kéo cao mà phần ẩn không giảm (khung cao cố định) thì hoàn lại, không chụp khoảng trắng. Dropdown, menu, bảng nhỏ có cuộn riêng không được mở rộng.
+Ngoại lệ: đang có modal mở (`aria-modal="true"`, `dialog:modal`, `role=dialog/alertdialog` chiếm ≥ 15% viewport, hoặc lớp nền `position: fixed`
+phủ ≥ 95% viewport, nền bán trong suốt / `backdrop-filter`) ⇒ chỉ chụp viewport như người dùng thấy, vì modal canh giữa viewport sẽ bị thu nhỏ giữa ảnh cả trang.
+Popover nhỏ không phải modal (date picker…) không tính.
 Khung xem ảnh trong app: slide nhỏ thu ảnh vừa khung (ảnh cao hơn 1.2× chiều rộng có nhãn "Ảnh cả trang"); chế độ phóng to hiện ảnh vừa chiều rộng và cuộn dọc,
 không thu theo chiều cao, để đọc được ảnh cả trang.
 Validator cảnh báo (hiện trong khung Candidate) khi script lệch với các bước này. Prompt của người dùng được ưu tiên hơn.

@@ -130,7 +130,7 @@ export async function run(page: Page, input: Input): Promise<void> {
    - Do not add waitForTimeout or other delays to slow the run down: the runner replays every action at a speed a person can follow by itself.
    - Do not log in inside the script (the runner has its own authenticated session). Only import from "@playwright/test". No fs, process, require, eval or network calls.
    - Add a comment \`// Step N: <manual step>\` before the code of each manual step.
-   - The Trial/Testing runner captures nothing and closes nothing by itself: screenshots and closing the browser happen only where the script does them, as listed in "Screenshot and close-browser steps" below. Use \`await page.screenshot()\` and never pass a \`path\` — the runner decides where evidence is stored and always captures the whole page from top to bottom. Close only with \`await page.close()\`.
+   - The Trial/Testing runner captures nothing and closes nothing by itself: screenshots and closing the browser happen only where the script does them, as listed in "Screenshot and close-browser steps" below. Use \`await page.screenshot()\` and never pass a \`path\` — the runner decides where evidence is stored and captures the whole page from top to bottom (only the visible viewport while a modal dialog is open). Close only with \`await page.close()\`.
 4. At the end call browser_take_screenshot once with fullPage: true to capture the final state (this is for the training record, not the script).
 5. Stop immediately (without guessing) if: a login page or expired session appears → status "auth_required"; a step is ambiguous, impossible, or needs a domain outside the allowed list → status "blocked" with the reason.
 6. Finish your reply with ONE line of JSON and nothing after it:

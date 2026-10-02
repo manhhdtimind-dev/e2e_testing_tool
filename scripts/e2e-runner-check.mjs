@@ -133,6 +133,25 @@ try {
   const fixedBox = await runJob("fixed-scroller", { campaign_name: "Fixed Box", objective: "Sales" }, { source: shell("flex:none;width:1100px;height:600px") });
   check(fixedBox.ok && pngHeightOf(fixedBox) === 820, `fixed-height scroller is not stretched (height ${pngHeightOf(fixedBox)}px; ${fixedBox.error_message ?? ""})`);
 
+  // A modal is centred in the viewport: capture what the user sees instead of a tall page with a tiny modal.
+  const withOverlay = (overlay) =>
+    shell("").replace(
+      "  await page.screenshot();\n",
+      `  await page.evaluate(() => { document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(overlay)}); });\n  await page.screenshot();\n`,
+    );
+  const dialogShot = await runJob("modal-dialog", { campaign_name: "Modal", objective: "Sales" }, {
+    source: withOverlay('<div role="dialog" aria-modal="true" style="position:fixed;top:30%;left:35%;width:400px;height:300px;background:#fff">Create</div>'),
+  });
+  check(dialogShot.ok && pngHeightOf(dialogShot) === 820, `open aria-modal dialog: viewport only (height ${pngHeightOf(dialogShot)}px; ${dialogShot.error_message ?? ""})`);
+  const backdropShot = await runJob("modal-backdrop", { campaign_name: "Backdrop", objective: "Sales" }, {
+    source: withOverlay('<div style="position:fixed;inset:0;background:rgba(0,0,0,.5)"><div style="margin:20vh auto;width:400px;height:300px;background:#fff">Create</div></div>'),
+  });
+  check(backdropShot.ok && pngHeightOf(backdropShot) === 820, `modal without roles (semi-transparent backdrop): viewport only (height ${pngHeightOf(backdropShot)}px)`);
+  const popoverShot = await runJob("small-popover", { campaign_name: "Popover", objective: "Sales" }, {
+    source: withOverlay('<div role="dialog" style="position:fixed;top:60px;left:220px;width:240px;height:200px;background:#fff">Date</div>'),
+  });
+  check(popoverShot.ok && pngHeightOf(popoverShot) >= 2500, `small non-modal popover does not stop the full-page capture (height ${pngHeightOf(popoverShot)}px)`);
+
   let held;
   const rk = await runJob("keep-open", { campaign_name: "Keep Open", objective: "Sales" }, { keepOpen: true, onChild: (c) => (held = c) });
   const exited = new Promise((r) => held.once("exit", () => r(true)));
