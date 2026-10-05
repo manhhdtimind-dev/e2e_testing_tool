@@ -1,7 +1,32 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 release/
 out/
-*.log
+*.tsbuildinfo
+
+# App data, test artifacts and scratch files
 .e2e-data/
 demo-site/.data/
+.tmp/
+test-results/
+playwright-report/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local env files
+.env
+.env.*
+
+# OS / editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+~$*
