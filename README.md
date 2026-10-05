@@ -32,8 +32,20 @@ Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor*
 
 ### Bước 2 — Environment (trang web cần kiểm thử)
 
+**Environment** là một bản của trang web mà bạn muốn kiểm thử, ví dụ bản thử nghiệm (staging) hoặc bản thật (production). Mỗi environment gồm:
+- **Base URL**: địa chỉ gốc của trang web đó.
+- **Phiên đăng nhập**: app tự đăng nhập bằng phiên này khi chạy test.
+
+Test case chỉ ghi đường dẫn bên trong trang, ví dụ `/campaigns`, không ghi địa chỉ đầy đủ. Vì vậy cùng một bộ test case chạy được trên nhiều environment: khi chạy, bạn chọn environment nào thì app mở đúng trang web đó.
+
+Ví dụ:
+- **Kiểm thử trước khi phát hành**: tạo environment `Staging` (`https://staging.app.example.com`) để Training và chạy thử hằng ngày. Trước khi phát hành, tạo thêm environment `Production` (`https://app.example.com`), rồi vào Testing chạy lại đúng các version đã duyệt, chỉ cần đổi environment.
+- **Kiểm thử theo vai trò người dùng**: tạo hai environment cùng Base URL, ví dụ `App - Admin` đăng nhập bằng tài khoản quản trị và `App - Nhân viên` đăng nhập bằng tài khoản thường. Chạy cùng một test case trên mỗi environment để xem mỗi vai trò thấy và làm được gì.
+
+Cách tạo:
+
 1. Bấm **Thêm**, rồi nhập:
-   - **Tên**.
+   - **Tên**, ví dụ `Staging`.
    - **Base URL**, ví dụ `https://app.example.com`.
    - Bấm **Lưu environment**.
 2. Ở mục **Runner auth**:
