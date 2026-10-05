@@ -21,8 +21,14 @@ Dữ liệu của app nằm trong thư mục `data` cạnh file exe. Muốn sao 
 
 ### Bước 1 — Cài đặt (góc phải trên cùng)
 
-- Nhập **OpenAI API key** (cho Codex) hoặc **Cursor API key**. Chỉ cần một trong hai.
-- Bấm **Kiểm tra tích hợp agent**. Kết quả báo thành công là được.
+Chỉ cần dùng được **một** trong hai agent:
+
+- **Codex**:
+  - Nếu máy này đã đăng nhập Codex bằng tài khoản ChatGPT (qua app Codex, extension Codex trong VS Code/Cursor, hoặc Codex CLI) với cùng tài khoản Windows, thì **không cần nhập key**. Để trống ô OpenAI API key.
+  - Nếu chưa đăng nhập, nhập **OpenAI API key**.
+- **Cursor**: luôn phải nhập **Cursor API key**, kể cả khi đã đăng nhập phần mềm Cursor. Key lấy ở trang tài khoản trên cursor.com.
+
+Sau đó chọn agent và bấm **Kiểm tra tích hợp agent**. Kết quả báo thành công là được.
 
 ### Bước 2 — Environment (trang web cần kiểm thử)
 
@@ -106,6 +112,7 @@ Vào **Training**, chọn test case, Environment và Chrome profile. Sau đó d�
 | `PROFILE_UNAVAILABLE` / preflight lỗi | Mở Chrome đúng profile, kiểm tra extension Playwright MCP Bridge đang bật, bấm cho phép kết nối |
 | `AUTH_REQUIRED` | Phiên đăng nhập hết hạn. Vào Environment, Runner auth, đăng nhập lại và bấm **Lưu phiên đăng nhập** |
 | "Không giải mã được secret" | Xảy ra khi copy app sang máy hoặc tài khoản Windows khác. Nhập lại API key và mật khẩu |
+| Codex báo lỗi đăng nhập dù không nhập key | Phiên đăng nhập Codex trên máy đã hết hạn hoặc thuộc tài khoản Windows khác. Đăng nhập lại Codex, hoặc nhập OpenAI API key |
 | Tải file lên không được | Vào trang quản lý extension của Chrome, mở chi tiết Playwright MCP Bridge, bật **Allow access to file URLs** |
 | Báo trùng tên khi chạy lại | Đổi dữ liệu (ví dụ tên) trước khi chạy |
 | Lỗi `Timeout` ở một bước | Ở Training, dùng **Gửi prompt** mô tả bước bị lỗi để AI sửa |
