@@ -12,7 +12,8 @@ export interface EnvironmentInput {
   environment_id?: string;
   name: string;
   base_url: string;
-  allowed_domains: string[];
+  /** Omitted by the UI: the base URL host plus extra domains saved earlier. */
+  allowed_domains?: string[];
   /** Omitted by the UI: the existing list is kept. */
   secret_fields?: string[];
 }
@@ -38,11 +39,13 @@ export function saveEnvironment(ctx: AppContext, input: EnvironmentInput): Envir
   if (!input.name.trim()) throw new AppError("Thiếu tên environment");
   const ts = now();
   const existing = input.environment_id ? ctx.repo.environments.get(input.environment_id) : undefined;
+  const oldHost = existing ? new URL(existing.base_url).hostname.toLowerCase() : null;
+  const extraDomains = input.allowed_domains ?? (existing?.allowed_domains ?? []).filter((d) => d !== oldHost);
   const env: Environment = {
     environment_id: existing?.environment_id ?? newId("env"),
     name: input.name.trim(),
     base_url: input.base_url.trim(),
-    allowed_domains: normalizeDomains(input.base_url, input.allowed_domains),
+    allowed_domains: normalizeDomains(input.base_url, extraDomains),
     runner_auth_ref: existing?.runner_auth_ref ?? null,
     runner_auth_updated_at: existing?.runner_auth_updated_at ?? null,
     secret_fields: [...new Set((input.secret_fields ?? existing?.secret_fields ?? []).map((s) => s.trim()).filter(Boolean))],

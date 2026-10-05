@@ -10,10 +10,9 @@ interface EnvDraft {
   environment_id?: string;
   name: string;
   base_url: string;
-  allowed_domains: string;
 }
 
-const blankEnv = (): EnvDraft => ({ name: "", base_url: "", allowed_domains: "" });
+const blankEnv = (): EnvDraft => ({ name: "", base_url: "" });
 
 function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; profiles: BrowserProfile[]; onSaved: (id: string) => void }) {
   const [d, setD] = useState<EnvDraft>(blankEnv());
@@ -31,7 +30,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
             environment_id: env.environment_id,
             name: env.name,
             base_url: env.base_url,
-            allowed_domains: env.allowed_domains.join(", "),
           }
         : blankEnv(),
     );
@@ -51,7 +49,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           environment_id: d.environment_id,
           name: d.name,
           base_url: d.base_url,
-          allowed_domains: d.allowed_domains.split(/[,\s]+/).filter(Boolean),
         }),
       "Đã lưu environment",
     );
@@ -65,11 +62,8 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           <Field label="Tên">
             <input type="text" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
           </Field>
-          <Field label="Base URL">
+          <Field label="Base URL" hint="Training và Testing chỉ được mở trang thuộc domain này.">
             <input type="url" value={d.base_url} placeholder="https://app.example.com" onChange={(e) => setD({ ...d, base_url: e.target.value })} />
-          </Field>
-          <Field label="Allowed domains" hint="Phân tách bằng dấu phẩy; hỗ trợ *.example.com. Domain của base URL luôn được thêm.">
-            <input type="text" value={d.allowed_domains} onChange={(e) => setD({ ...d, allowed_domains: e.target.value })} />
           </Field>
         </div>
         <div className="row end" style={{ marginTop: 14 }}>

@@ -52,6 +52,15 @@ describe("environment secret fields", () => {
     expect(() => setEnvironmentSecret(ctx, env.environment_id, "title", "x")).toThrow(/không phải biến secret/);
   });
 
+  it("allows only the base URL host when no domains are sent, keeping extras saved earlier", () => {
+    const env = saveEnvironment(ctx, { name: "A", base_url: "https://app.example.com/login" });
+    expect(env.allowed_domains).toEqual(["app.example.com"]);
+
+    const old = saveEnvironment(ctx, { name: "B", base_url: "https://a.example.com", allowed_domains: ["sso.example.com"] });
+    const moved = saveEnvironment(ctx, { environment_id: old.environment_id, name: "B", base_url: "https://b.example.com" });
+    expect(moved.allowed_domains).toEqual(["b.example.com", "sso.example.com"]);
+  });
+
   it("keeps names saved on older environments when the form no longer sends them", () => {
     const env = saveEnvironment(ctx, { name: "Old", base_url: "https://old.example.com", allowed_domains: [], secret_fields: ["password"] });
     const updated = saveEnvironment(ctx, { environment_id: env.environment_id, name: "Old 2", base_url: env.base_url, allowed_domains: [] });
