@@ -27,6 +27,12 @@
       "!dist/**/*.map",
       "package.json"
     ],
+    "extraFiles": [
+      {
+        "from": ".cursor/skills/writing-e2e-test-cases",
+        "to": "skill/writing-e2e-test-cases"
+      }
+    ],
     "asar": false,
     "npmRebuild": false,
     "electronDist": "node_modules/electron/dist",

@@ -53,6 +53,8 @@ Quay lại **Cài đặt**. Ở mục **Kiểm tra tích hợp agent**, bấm **
 
 ## 3. Thêm test case
 
+Tự điền file Excel theo các bước dưới đây, hoặc nhờ AI viết giúp (xem **mục 4**).
+
 1. Vào **Test Cases**, bấm **Mở file mẫu**. Excel sẽ mở một file mẫu mới.
 2. Điền mỗi dòng một test case, rồi bấm **Ctrl+S** để lưu:
 
@@ -71,7 +73,51 @@ Quay lại **Cài đặt**. Ở mục **Kiểm tra tích hợp agent**, bấm **
 
 ---
 
-## 4. Training — tạo kịch bản
+## 4. Nhờ AI viết test case (skill)
+
+Thay vì tự điền Excel, bạn có thể nhờ AI trong **Cursor** viết. AI dùng skill có sẵn trong gói và tạo ra file Excel đúng định dạng để Import.
+
+### Cài một lần
+
+1. Cài **Node.js** bản LTS từ [nodejs.org](https://nodejs.org) (nếu máy chưa có).
+2. Copy thư mục `skill\writing-e2e-test-cases` (nằm cạnh file exe) vào `C:\Users\<tên bạn>\.cursor\skills\`. Tạo thư mục `skills` nếu chưa có.
+3. Khởi động lại Cursor.
+
+### Cách dùng
+
+1. Mở Cursor. Tốt nhất là mở thư mục **source code của trang web** cần test, vì khi có code, AI lấy đúng tên nút và tên ô trên màn hình. Không có code thì mô tả bằng lời cũng được.
+2. Mở khung chat Agent, gõ yêu cầu bằng tiếng Việt, có chữ **"test case"**. Ví dụ ở bảng dưới.
+3. AI tạo file `.xlsx`, thường trong thư mục `test-cases\`, rồi báo lại:
+   - tên dự án nên chọn khi Import;
+   - danh sách test case;
+   - các biến là mật khẩu (secret);
+   - các file mẫu cần thêm.
+4. Mở file bằng Excel xem lại, rồi Import như **mục 3, bước 3**.
+5. Làm theo những gì AI báo:
+   - **Biến secret** (giá trị ghi là `SECRET`): mở test case, tích cột **Secret** của biến đó, rồi nhập giá trị thật ở **Environment → Giá trị secret**.
+   - **File mẫu** (ảnh, video… để tải lên): vào **Test Cases → File mẫu của dự án → Thêm file…**, chọn đúng file có tên như AI báo.
+
+### Ví dụ yêu cầu
+
+| Tình huống | Gõ vào chat |
+|---|---|
+| Có source code, cần test một trang | `Viết test case cho trang Quản lý sản phẩm, dự án Shop Admin` |
+| Nhiều tính năng, mỗi tính năng một sheet | `Viết test case cho Đăng nhập, Tạo campaign và Báo cáo, mỗi tính năng một sheet, lưu vào test-cases/ads-tool.xlsx` |
+| Không có code, chỉ mô tả | `Viết test case đăng nhập cho https://app.example.com: có ô "Email", ô "Mật khẩu", nút "Đăng nhập"; sai mật khẩu thì hiện "Sai thông tin đăng nhập"` |
+| Có tài liệu yêu cầu | `Đọc file docs/yeu-cau.md rồi viết test case cho phần Tạo đơn hàng` |
+| Có tải file lên | `Viết test case tải ảnh banner ở trang Assets, gồm cả trường hợp file sai định dạng` |
+| Chỉ cần case lỗi / kiểm tra dữ liệu | `Viết 5 test case negative cho form Tạo campaign (bỏ trống tên, ngân sách âm, ngày kết thúc trước ngày bắt đầu…), lưu thành file mới` |
+| Muốn chụp ảnh ở nhiều bước | `Viết test case tạo sản phẩm, chụp màn hình form trước khi lưu và danh sách sau khi lưu` |
+
+Mẹo:
+
+- Nói rõ **tên dự án** để AI đặt mã test case không trùng với dự án khác.
+- Muốn thêm case cho file đã có, bảo AI **lưu thành file mới** rồi Import vào cùng dự án. Test case cũ vẫn giữ nguyên.
+- AI không tự điền mật khẩu thật. Nếu file có chữ `SECRET`, đó là chỗ bạn cần nhập giá trị ở Environment.
+
+---
+
+## 5. Training — tạo kịch bản
 
 Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặc định là **Cursor**). Sau đó dùng một trong ba nút:
 
@@ -98,7 +144,7 @@ Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặ
 
 ---
 
-## 5. Testing — chạy kiểm thử
+## 6. Testing — chạy kiểm thử
 
 1. Vào **Testing**, bấm **Chạy…** ở test case cần chạy.
 2. Chọn version và Environment, sửa dữ liệu nếu muốn, rồi chạy.
@@ -109,7 +155,7 @@ Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặ
 
 ---
 
-## 6. Gặp lỗi?
+## 7. Gặp lỗi?
 
 | Thông báo | Cách xử lý |
 |---|---|
@@ -120,4 +166,6 @@ Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặ
 | Codex báo lỗi đăng nhập dù không nhập key | Phiên đăng nhập Codex trên máy đã hết hạn hoặc thuộc tài khoản Windows khác. Đăng nhập lại Codex, hoặc nhập OpenAI API key |
 | Tải file lên không được | Vào trang quản lý extension của Chrome, mở chi tiết Playwright MCP Bridge, bật **Allow access to file URLs** |
 | Báo trùng tên khi chạy lại | Đổi dữ liệu (ví dụ tên) trước khi chạy |
+| AI viết test case nhưng không ra file Excel | Kiểm tra đã copy đúng thư mục skill, đã cài Node.js và đã khởi động lại Cursor. Trong chat, thêm câu `dùng skill writing-e2e-test-cases` |
+| Import báo `test_id` đã thuộc dự án khác | Bảo AI: `đổi mã test case, thêm mã dự án vào đầu`, rồi Import lại |
 | Lỗi `Timeout` ở một bước | Ở Training, dùng **Gửi prompt** mô tả bước bị lỗi để AI sửa |
