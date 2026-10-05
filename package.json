@@ -13,7 +13,26 @@
     "test": "vitest run",
     "demo-site": "node demo-site/server.mjs",
     "e2e:runner": "node scripts/build.mjs && node scripts/e2e-runner-check.mjs",
-    "smoke:ui": "node scripts/build.mjs && node scripts/smoke-ui.mjs"
+    "smoke:ui": "node scripts/build.mjs && node scripts/smoke-ui.mjs",
+    "dist:portable": "node scripts/build.mjs && electron-builder --win zip --x64"
+  },
+  "build": {
+    "appId": "local.e2e-ai-trainer",
+    "artifactName": "E2E-AI-Trainer-${version}-portable-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "!dist/**/*.map",
+      "package.json"
+    ],
+    "asar": false,
+    "npmRebuild": false,
+    "electronDist": "node_modules/electron/dist",
+    "win": {
+      "target": "zip"
+    }
   },
   "dependencies": {
     "@cursor/sdk": "1.0.32",
@@ -36,6 +55,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "electron": "44.4.5",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

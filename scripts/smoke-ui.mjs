@@ -73,7 +73,9 @@ const check = (cond, label) => {
 const demo = spawn(process.execPath, [join(root, "demo-site/server.mjs")], { env: { ...process.env, DEMO_PORT: String(PORT), DEMO_AUTOLOGIN: "1" }, stdio: "pipe" });
 await new Promise((r) => demo.stdout.once("data", r));
 
-const app = await _electron.launch({ executablePath: require("electron"), args: [root], env: { ...process.env, E2E_DATA_DIR: dataDir, E2E_RECORDING_CDP_PORT: String(RECORDING_CDP_PORT) } });
+// E2E_APP_EXE=<path to packaged exe> runs the same checks against a portable build.
+const packagedExe = process.env.E2E_APP_EXE;
+const app = await _electron.launch({ executablePath: packagedExe ?? require("electron"), args: packagedExe ? [] : [root], env: { ...process.env, E2E_DATA_DIR: dataDir, E2E_RECORDING_CDP_PORT: String(RECORDING_CDP_PORT) } });
 const errors = [];
 try {
   const win = await app.firstWindow();

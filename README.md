@@ -34,6 +34,23 @@ npm start            # build rồi mở app
 - Chỉ khi chọn trình duyệt **Chromium** trong Cài đặt mới cần chạy thêm: `npx playwright install chromium`.
 - Dữ liệu (SQLite, artifact, file mẫu) nằm ở `%APPDATA%\E2E AI Trainer\data`. Muốn sao lưu thì copy thư mục này khi app đang tắt.
 
+### Bản portable (không cần cài Node)
+
+Build:
+
+```powershell
+npm run dist:portable   # tạo release\E2E-AI-Trainer-<version>-portable-x64.zip
+```
+
+Cách dùng:
+
+- Giải nén file zip ra một thư mục ghi được (không đặt trong `Program Files`), rồi chạy `E2E AI Trainer.exe`.
+- Máy chạy chỉ cần Chrome và extension Playwright MCP Bridge. Node, Codex CLI và Playwright đã nằm sẵn trong gói.
+- Dữ liệu lưu ở thư mục `data\` cạnh file exe. Copy cả thư mục là mang theo được dữ liệu.
+- Nếu thư mục đó không ghi được, app dùng `%APPDATA%` như khi chạy từ source.
+- Secret (API key, giá trị secret, runner auth, extension token) được mã hoá theo tài khoản Windows. Khi đem sang máy hoặc tài khoản khác, app báo "Không giải mã được secret". Lúc đó cần nhập lại các giá trị này.
+- Codex đăng nhập bằng `codex login` thì phiên đăng nhập lưu theo user (`%USERPROFILE%\.codex`). Trên máy mới, nhập OpenAI API key trong Cài đặt, hoặc đăng nhập một lần bằng bản Codex có sẵn trong gói: `resources\app\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe login`.
+
 ---
 
 ## 2. Thiết lập lần đầu

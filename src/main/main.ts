@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, session } from "electron";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Db } from "./db/database";
@@ -14,6 +14,24 @@ import { abortRecording } from "./recording/session";
 const here = dirname(fileURLToPath(import.meta.url));
 const devUrl = process.env.E2E_RENDERER_URL;
 let mainWindow: BrowserWindow | null = null;
+
+/** Packaged builds are portable: everything lives in `data` next to the exe when that folder is writable. */
+function portableDataDir(): string | null {
+  if (!app.isPackaged || process.env.E2E_DATA_DIR) return null;
+  const dir = join(dirname(process.execPath), "data");
+  try {
+    mkdirSync(dir, { recursive: true });
+    const probe = join(dir, ".write-test");
+    writeFileSync(probe, "");
+    rmSync(probe);
+    return dir;
+  } catch {
+    return null;
+  }
+}
+
+const portableData = portableDataDir();
+if (portableData) app.setPath("userData", join(portableData, "electron"));
 
 protocol.registerSchemesAsPrivileged([{ scheme: "artifact", privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
@@ -45,7 +63,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  const dataDir = process.env.E2E_DATA_DIR ?? join(app.getPath("userData"), "data");
+  const dataDir = process.env.E2E_DATA_DIR ?? portableData ?? join(app.getPath("userData"), "data");
   const p = initPaths(dataDir);
   const db = new Db(p.db);
   const repo = new Repo(db);

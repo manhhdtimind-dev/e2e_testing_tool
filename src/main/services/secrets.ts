@@ -33,7 +33,14 @@ export class SecretStore {
     const row = this.db.get<{ value: string; encrypted: number }>("SELECT value, encrypted FROM secrets WHERE key = ?", key);
     if (!row) return null;
     const buf = Buffer.from(row.value, "base64");
-    return row.encrypted ? this.enc.decrypt(buf) : buf.toString("utf8");
+    if (!row.encrypted) return buf.toString("utf8");
+    try {
+      return this.enc.decrypt(buf);
+    } catch {
+      throw new Error(
+        `Không giải mã được secret "${key}" — dữ liệu được mã hoá bởi tài khoản Windows hoặc máy khác. Hãy nhập lại giá trị này (API key ở Cài đặt; secret, runner auth, extension token ở Environment).`,
+      );
+    }
   }
 
   has(key: string): boolean {
