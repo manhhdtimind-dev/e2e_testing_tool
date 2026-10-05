@@ -96,6 +96,9 @@ try {
       return r.data;
     }, [method, args]);
 
+  check((await bridge("getSettings")).runner_headless === false, "Chạy ẩn (headless) mặc định tắt");
+  await bridge("updateSettings", { runner_headless: true });
+
   // ---------- sample template ----------
   await app.evaluate(({ shell }) => {
     globalThis.__opened = [];

@@ -17,7 +17,7 @@ export const DEFAULT_SETTINGS: StoredSettings = {
   run_timeout_sec: 180,
   max_concurrent_runs: 2,
   runner_browser: "chrome",
-  runner_headless: true,
+  runner_headless: false,
   runner_keep_open: true,
   runner_slow_mo_ms: 500,
   runner_fs_restricted: true,
