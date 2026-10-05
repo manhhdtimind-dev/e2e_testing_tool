@@ -7,7 +7,7 @@
 ## 1. Cài đặt
 
 1. Cài **Google Chrome** (nếu máy chưa có).
-2. Mở Chrome bằng profile sẽ dùng cho Training, rồi cài extension **Playwright MCP Bridge**: mở [trang extension trên Chrome Web Store](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm) và bấm **Add to Chrome** (Thêm vào Chrome).
+2. Mở Chrome bằng profile sẽ dùng cho Training, rồi cài extension [**Playwright MCP Bridge**](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm) và bấm **Add to Chrome** (Thêm vào Chrome).
 3. Giải nén file `E2E-AI-Trainer-...-portable-x64.zip` vào một thư mục, ví dụ `D:\E2E AI Trainer`.
    - Không đặt trong `C:\Program Files`.
 4. Mở thư mục đó, chạy **E2E AI Trainer.exe**.
@@ -36,12 +36,6 @@ Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor*
 - **Base URL**: địa chỉ gốc của trang web đó.
 - **Phiên đăng nhập**: app tự đăng nhập bằng phiên này khi chạy test.
 
-Test case chỉ ghi đường dẫn bên trong trang, ví dụ `/campaigns`, không ghi địa chỉ đầy đủ. Vì vậy cùng một bộ test case chạy được trên nhiều environment: khi chạy, bạn chọn environment nào thì app mở đúng trang web đó.
-
-Ví dụ:
-- **Kiểm thử trước khi phát hành**: tạo environment `Staging` (`https://staging.app.example.com`) để Training và chạy thử hằng ngày. Trước khi phát hành, tạo thêm environment `Production` (`https://app.example.com`), rồi vào Testing chạy lại đúng các version đã duyệt, chỉ cần đổi environment.
-- **Kiểm thử theo vai trò người dùng**: tạo hai environment cùng Base URL, ví dụ `App - Admin` đăng nhập bằng tài khoản quản trị và `App - Nhân viên` đăng nhập bằng tài khoản thường. Chạy cùng một test case trên mỗi environment để xem mỗi vai trò thấy và làm được gì.
-
 Cách tạo:
 
 1. Bấm **Thêm**, rồi nhập:
@@ -57,8 +51,6 @@ Cách tạo:
    - Bấm **Chọn từ profile trên máy**, chọn profile Chrome đã cài extension.
    - Bấm **Đăng ký profile**.
 4. Mở Chrome bằng profile đó, đăng nhập trang web trên Chrome nếu chưa đăng nhập. Sau đó bấm **Chạy preflight**. Khi Chrome hỏi, bấm cho phép kết nối.
-
-Mục **Giá trị secret** chỉ hiện khi có test case dùng biến bí mật, ví dụ test trang đăng nhập hoặc nhập API key vào form (xem mục 4). Bình thường bạn không cần làm gì ở đây.
 
 App chỉ mở trang thuộc domain của Base URL. Nếu test case cần bấm sang trang ở domain khác (đăng nhập Google, cổng thanh toán, trang tài liệu…), bấm **Nâng cao: cho phép mở thêm domain khác** dưới ô Base URL. Điền domain đó, ví dụ `accounts.google.com`, rồi bấm **Lưu environment**.
 
@@ -107,14 +99,9 @@ Thay vì tự điền Excel, bạn có thể nhờ AI trong **Cursor** viết. A
 3. AI tạo file `.xlsx`, thường trong thư mục `test-cases\`, rồi báo lại:
    - tên dự án nên chọn khi Import;
    - danh sách test case;
-   - các biến bí mật (secret), nếu có;
    - các file mẫu cần thêm.
 4. Mở file bằng Excel xem lại, rồi Import như **mục 3, bước 3**.
-5. Làm theo những gì AI báo:
-   - **Biến secret** (giá trị ghi là `SECRET`, hiếm gặp vì đăng nhập đã có Runner auth):
-     1. Mở test case, tích cột **Secret** của biến đó.
-     2. Vào Environment. Biến đó tự hiện ở mục **Giá trị secret**: nhập giá trị thật rồi bấm **Lưu**.
-   - **File mẫu** (ảnh, video… để tải lên): vào **Test Cases → File mẫu của dự án → Thêm file…**, chọn đúng file có tên như AI báo.
+5. Nếu AI báo cần **file mẫu** (ảnh, video… để tải lên): vào **Test Cases → File mẫu của dự án → Thêm file…**, chọn đúng file có tên như AI báo.
 
 ### Ví dụ yêu cầu
 
