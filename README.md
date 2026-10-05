@@ -1,203 +1,111 @@
-# E2E AI Trainer
+# E2E AI Trainer — Hướng dẫn sử dụng
 
-Ứng dụng desktop (Electron) để biến test case viết bằng lời thành Playwright script, rồi dùng script đó chạy kiểm thử web.
-
-Luồng làm việc: **Test Cases → Environment → Training → Testing**.
-
-- **Training**: tạo script bằng cách ghi thao tác, hoặc nhờ AI agent (Codex / Cursor) tự viết. Sau đó chỉnh script bằng prompt hoặc sửa tay, chạy thử (Trial), rồi chấp nhận thành version.
-- **Testing**: chạy version đã duyệt với input tuỳ chọn, xem ảnh, step log và trace, rồi tự đánh giá PASS/FAIL.
+Ứng dụng giúp tự động kiểm thử trang web. Bạn viết các bước kiểm thử bằng lời, app tạo ra kịch bản để chạy lại nhiều lần và chụp ảnh kết quả.
 
 ---
 
 ## 1. Cài đặt
 
-### Yêu cầu
+1. Cài **Google Chrome** (nếu máy chưa có).
+2. Mở Chrome, vào Chrome Web Store, tìm và cài extension **Playwright MCP Bridge**.
+3. Giải nén file `E2E-AI-Trainer-...-portable-x64.zip` vào một thư mục, ví dụ `D:\E2E AI Trainer`.
+   - Không đặt trong `C:\Program Files`.
+4. Mở thư mục đó, chạy **E2E AI Trainer.exe**.
+   - Nếu Windows hiện cảnh báo màu xanh, bấm **More info** rồi **Run anyway**.
 
-| Thành phần | Ghi chú |
-|---|---|
-| Windows 10/11 | |
-| Node.js ≥ 22.12 (khuyến nghị 24) | `node -v` để kiểm tra |
-| Google Chrome | Dùng cho Training và (mặc định) cho runner |
-| Extension **Playwright MCP Bridge** | Cài vào Chrome profile dùng cho Training |
-| Tài khoản AI | Codex: `codex login` **hoặc** OpenAI API key. Cursor: Cursor API key. Cần ít nhất một trong hai. |
-
-### Cài và chạy
-
-```powershell
-cd C:\Project\e2e_test
-npm install
-npm start            # build rồi mở app
-# hoặc: npm run dev  # chế độ phát triển (hot reload giao diện)
-```
-
-- Đăng nhập Codex bằng tài khoản ChatGPT (không cần API key): `npx codex login`.
-- Chỉ khi chọn trình duyệt **Chromium** trong Cài đặt mới cần chạy thêm: `npx playwright install chromium`.
-- Dữ liệu (SQLite, artifact, file mẫu) nằm ở `%APPDATA%\E2E AI Trainer\data`. Muốn sao lưu thì copy thư mục này khi app đang tắt.
-
-### Bản portable (không cần cài Node)
-
-Build:
-
-```powershell
-npm run dist:portable   # tạo release\E2E-AI-Trainer-<version>-portable-x64.zip
-```
-
-Cách dùng:
-
-- Giải nén file zip ra một thư mục ghi được (không đặt trong `Program Files`), rồi chạy `E2E AI Trainer.exe`.
-- Máy chạy chỉ cần Chrome và extension Playwright MCP Bridge. Node, Codex CLI và Playwright đã nằm sẵn trong gói.
-- Dữ liệu lưu ở thư mục `data\` cạnh file exe. Copy cả thư mục là mang theo được dữ liệu.
-- Nếu thư mục đó không ghi được, app dùng `%APPDATA%` như khi chạy từ source.
-- Secret (API key, giá trị secret, runner auth, extension token) được mã hoá theo tài khoản Windows. Khi đem sang máy hoặc tài khoản khác, app báo "Không giải mã được secret". Lúc đó cần nhập lại các giá trị này.
-- Codex đăng nhập bằng `codex login` thì phiên đăng nhập lưu theo user (`%USERPROFILE%\.codex`). Trên máy mới, nhập OpenAI API key trong Cài đặt, hoặc đăng nhập một lần bằng bản Codex có sẵn trong gói: `resources\app\node_modules\@openai\codex-win32-x64\vendor\x86_64-pc-windows-msvc\bin\codex.exe login`.
+Dữ liệu của app nằm trong thư mục `data` cạnh file exe. Muốn sao lưu thì tắt app rồi copy thư mục này.
 
 ---
 
 ## 2. Thiết lập lần đầu
 
-### 2.1 Cài đặt (góc phải thanh trên)
+### Bước 1 — Cài đặt (góc phải trên cùng)
 
-- **Agent**:
-  - Codex: nhập OpenAI API key, hoặc bỏ trống nếu đã `codex login`.
-  - Cursor: bắt buộc nhập API key.
-  - Chọn model. Với Codex, nên để reasoning effort ở mức **medium**.
-- **Runner**:
-  - Trình duyệt: Chrome, Edge hoặc Chromium.
-  - Headless: chạy ẩn hoặc hiện cửa sổ.
-  - Giữ trình duyệt mở sau khi chạy.
-  - Tốc độ thao tác: mặc định 500 ms mỗi thao tác.
-- Bấm **Kiểm tra tích hợp agent** để xác nhận key và model dùng được.
+- Nhập **OpenAI API key** (cho Codex) hoặc **Cursor API key**. Chỉ cần một trong hai.
+- Bấm **Kiểm tra tích hợp agent**. Kết quả báo thành công là được.
 
-### 2.2 Environment
+### Bước 2 — Environment (trang web cần kiểm thử)
 
 1. Bấm **Thêm**, rồi nhập:
    - **Tên**.
-   - **Base URL**.
-   - **Allowed domains**: các domain mà script được phép truy cập.
-   - **Biến secret**: tên các biến như `password` hay `otp`.
-2. **Giá trị secret**: nhập giá trị thật. Giá trị được mã hoá trên máy, không đưa vào test case, prompt, script hay log.
-3. **Runner auth**, phiên đăng nhập dùng cho Trial, Testing và Ghi thao tác:
+   - **Base URL**, ví dụ `https://app.example.com`.
+2. Nếu trang cần mật khẩu, nhập ở mục **Giá trị secret**. Không ghi mật khẩu vào file test case.
+3. Ở mục **Runner auth**:
    - Bấm **Mở trình duyệt để đăng nhập**.
-   - Đăng nhập trang web trong cửa sổ vừa mở.
+   - Đăng nhập trang web như bình thường.
    - Bấm **Lưu phiên đăng nhập**.
-   - Khi phiên hết hạn, app báo `AUTH_REQUIRED`. Làm lại bước này.
-4. **Chrome profiles cho Training**, profile mà AI agent điều khiển qua extension:
-   - **Chọn từ profile trên máy**, đặt **Nhãn hiển thị**.
-   - Có thể nhập **Extension token** để khỏi phải bấm cho phép mỗi lần. Token lấy trong extension, dạng `PLAYWRIGHT_MCP_EXTENSION_TOKEN=…`.
+4. Ở mục **Chrome profiles cho Training**:
+   - Bấm **Chọn từ profile trên máy**, chọn profile Chrome đã cài extension.
    - Bấm **Đăng ký profile**.
-5. Bấm **Chạy preflight** để kiểm tra kết nối. Preflight cần Chrome đang mở bằng profile đó, extension đã cài và đã được cho phép kết nối.
+5. Mở Chrome bằng profile đó, rồi bấm **Chạy preflight**. Khi Chrome hỏi, bấm cho phép kết nối.
 
 ---
 
-## 3. Test case
+## 3. Thêm test case
 
-### Định dạng file
+1. Vào **Test Cases**, bấm **Lưu file mẫu…** để lấy file Excel mẫu.
+2. Điền mỗi dòng một test case:
 
-File `.xlsx` hoặc `.csv` gồm 5 cột:
+| Cột | Ghi gì | Ví dụ |
+|---|---|---|
+| test_id | Mã test case, không trùng | `TC_LOGIN_001` |
+| title | Tên ngắn | Tạo campaign mới |
+| steps | Mỗi bước một dòng (Alt+Enter để xuống dòng) | `Click nút "Save"` |
+| input | Dữ liệu nhập vào | `campaign_name: Summer Sale` |
+| expected_result | Kết quả mong đợi trên màn hình | Campaign mới hiện trong danh sách |
 
-| Cột | Cách ghi |
-|---|---|
-| `test_id` | Mã duy nhất, ví dụ `TC_CAMP_001` |
-| `title` | Tên ngắn |
-| `steps` | Mỗi dòng một bước (trong Excel dùng Alt+Enter để xuống dòng). Dữ liệu thay đổi được viết `{{ten_bien}}` |
-| `input` | Giá trị mẫu cho mọi biến: `campaign_name: Summer Sale`, `key=value` hoặc JSON |
-| `expected_result` | Điều nhìn thấy được trên màn hình. Người dùng dựa vào đây để đánh giá PASS/FAIL |
-
-Quy tắc chính:
-
-- **Nhóm**:
-  - `.xlsx`: mỗi sheet là một nhóm, tên sheet là tên nhóm.
-  - `.csv`: cả file là một nhóm, mang tên file.
-  - Dự án được chọn khi Import.
-- **Chụp màn hình**: ghi thành một bước riêng, ví dụ `Chụp màn hình danh sách campaign`. Script chỉ chụp ở các bước này.
-- Không cần bước đăng nhập (runner đã có phiên), không cần bước "đợi". Chỉ ghi `Đóng trình duyệt` khi thật sự muốn đóng; khi đó nó phải là bước cuối.
-- **Secret**: không ghi mật khẩu thật. Để giá trị là `SECRET`, sau khi import đánh dấu biến đó là secret và nhập giá trị ở Environment.
-- **Tải file lên**: dùng bước `Tải file "Banner" = {{banner}}`, với input là tên file trần, ví dụ `banner: banner-sale.png`. Thêm file thật vào **File mẫu của dự án → Thêm file…**.
-
-Bấm **Mở file mẫu** hoặc **Lưu file mẫu…** để có template kèm sheet "Hướng dẫn".
-
-### Import
-
-1. **Test Cases → Import .xlsx / .csv**, chọn dự án (hoặc **+ Dự án mới…**) và file.
-2. Xem preview. Sửa hoặc bỏ các dòng lỗi.
-3. Bấm **Xác nhận và lưu**.
-
-Ngoài ra có thể **Tạo test case** trực tiếp. Bấm vào một dòng trong bảng để mở chi tiết, sửa steps, input schema và biến secret.
+   - Chỗ nào dữ liệu thay đổi được thì viết trong steps dạng `{{campaign_name}}`, và ghi giá trị ở cột input.
+   - Muốn chụp ảnh ở đâu thì thêm một bước `Chụp màn hình`.
+   - Mỗi sheet trong Excel là một nhóm test case.
+3. Bấm **Import .xlsx / .csv**, chọn dự án và file, kiểm tra rồi bấm **Xác nhận và lưu**.
 
 ---
 
-## 4. Training
+## 4. Training — tạo kịch bản
 
-Chọn test case, Environment, Agent (Codex hoặc Cursor) và Chrome profile. Nên bấm **Kiểm tra preflight** trước.
+Vào **Training**, chọn test case, Environment và Chrome profile. Sau đó dùng một trong ba nút:
 
-| Nút | Kết quả |
+| Nút | Dùng khi |
 |---|---|
-| **Ghi thao tác…** | Mở Chrome với runner auth, ghi lại thao tác của bạn thành script mới (không dùng AI) |
-| **Agent Training Auto** | AI tự thực hiện các bước trên Chrome profile và viết script mới |
-| **Gửi prompt** | AI **sửa candidate đang chọn** theo yêu cầu của bạn, ví dụ "sửa lỗi timeout ở bước Save". Enter để gửi, Shift+Enter để xuống dòng |
+| **Ghi thao tác…** | Bạn tự thao tác trên trang web, app ghi lại thành kịch bản |
+| **Agent Training Auto** | Để AI tự làm theo các bước và viết kịch bản |
+| **Gửi prompt** | Nhờ AI sửa kịch bản đang chọn, ví dụ "bước Save bị lỗi, sửa lại". Nhấn Enter để gửi |
 
-Khi ghi thao tác:
+**Khi ghi thao tác:**
 
-- Gõ đúng các giá trị input hiển thị trong hộp thoại. App sẽ thay chúng bằng `input.*` trong script.
-- Thanh nổi ở góc dưới trang có các nút:
+- Gõ đúng dữ liệu hiển thị trong hộp thoại.
+- Dùng thanh nhỏ ở góc dưới trang:
   - **›**: sang bước tiếp theo.
-  - **📷**: chụp màn hình (thêm một lệnh chụp vào script).
+  - **📷**: chụp màn hình.
   - **■ Kết thúc**: dừng ghi.
-- Mật khẩu bạn gõ không được lưu vào script.
 
-Với mỗi **Candidate** (một bản script), có thể:
+**Sau khi có kịch bản (Candidate):**
 
-- **So với #N**: xem diff với bản trước.
-- **Sửa code**: sửa tay, tạo candidate mới.
-- **Chạy Trial…**: chạy thử với input mẫu, xem ảnh, step log và lỗi.
-- **Chấp nhận**: tạo version `vN` dùng cho Testing.
-- **Từ chối**.
-
-Mẹo:
-
-- Nếu Trial lỗi, dùng **Gửi prompt** để AI sửa, thay vì chạy lại Agent Training Auto từ đầu. Kết quả Trial gần nhất của candidate (lỗi và step log) được gửi kèm tự động.
-- Muốn sửa một candidate cũ thì chọn nó ở khung Candidate trước khi Gửi prompt.
+1. Bấm **Chạy Trial…** để chạy thử.
+2. Xem kết quả:
+   - Nếu chạy đúng, bấm **Chấp nhận**. Kịch bản thành version dùng cho Testing.
+   - Nếu lỗi, dùng **Gửi prompt** mô tả lỗi để AI sửa, rồi chạy Trial lại.
 
 ---
 
-## 5. Testing
+## 5. Testing — chạy kiểm thử
 
-1. Bấm **Chạy…** ở dòng test case, chọn version, environment và input (để trống thì dùng giá trị mẫu).
-2. Lần chạy mở trong khung bên phải, gồm ảnh chụp, step log và trace.
-3. Đánh giá **PASS** hoặc **FAIL** theo `expected_result`.
+1. Vào **Testing**, bấm **Chạy…** ở test case cần chạy.
+2. Chọn version và Environment, sửa dữ liệu nếu muốn, rồi chạy.
+3. Xem ảnh chụp và so với kết quả mong đợi, sau đó bấm **PASS** hoặc **FAIL**.
 4. Các thao tác khác:
-   - **Tải evidence (.zip)** để lưu bằng chứng.
-   - **Send to Training**: đưa lần chạy lỗi sang Training làm ngữ cảnh sửa script.
-
-Nếu lỗi thuộc loại LOCATOR hoặc ACTION (không tìm thấy hoặc không thao tác được phần tử), version bị đánh dấu `SUSPECTED_BROKEN`. Khi đó cần training lại.
-
-**History** lưu lịch sử Trial và Testing, kèm audit log của mọi thay đổi.
+   - **Tải evidence (.zip)**: lưu bằng chứng.
+   - **Send to Training**: đưa lần chạy lỗi sang Training để sửa kịch bản.
 
 ---
 
-## 6. Xử lý lỗi thường gặp
+## 6. Gặp lỗi?
 
-| Hiện tượng | Cách xử lý |
+| Thông báo | Cách xử lý |
 |---|---|
-| `PROFILE_UNAVAILABLE`, preflight thất bại | Mở Chrome đúng profile, kiểm tra extension Playwright MCP Bridge đã bật, bấm cho phép kết nối (hoặc nhập Extension token) |
-| `AUTH_REQUIRED` khi Trial, Testing hoặc Ghi | Environment → Runner auth → đăng nhập lại → **Lưu phiên đăng nhập** |
-| AI không chọn được file khi tải lên | Vào trang chi tiết extension Playwright MCP Bridge, bật **Allow access to file URLs** |
-| Thiếu file mẫu khi chạy | Test Cases → File mẫu của dự án → **Thêm file…** đúng tên trong input |
-| Lỗi trùng dữ liệu (tên đã tồn tại) | Đổi giá trị input mỗi lần chạy, hoặc sửa script dùng giá trị duy nhất |
-| `TimeoutError` ở một locator | Chọn candidate bị lỗi, dùng **Gửi prompt** mô tả bước bị lỗi để AI sửa locator hoặc thêm chờ |
-| Agent báo lỗi key hoặc model | Cài đặt → **Kiểm tra tích hợp agent** |
-
----
-
-## 7. Lệnh cho developer
-
-```powershell
-npm run typecheck    # kiểm tra kiểu TypeScript
-npm test             # unit test (vitest)
-npm run build        # build vào dist/
-npm run demo-site    # web demo để thử nghiệm
-npm run e2e:runner   # kiểm tra runner end-to-end với demo site
-npm run smoke:ui     # smoke test giao diện (dữ liệu tạm trong .e2e-data/)
-```
-
-Tài liệu thiết kế chi tiết nằm ở `docs/superpowers/specs/2026-09-29-e2e-ai-trainer-design.md`.
+| `PROFILE_UNAVAILABLE` / preflight lỗi | Mở Chrome đúng profile, kiểm tra extension Playwright MCP Bridge đang bật, bấm cho phép kết nối |
+| `AUTH_REQUIRED` | Phiên đăng nhập hết hạn. Vào Environment, Runner auth, đăng nhập lại và bấm **Lưu phiên đăng nhập** |
+| "Không giải mã được secret" | Xảy ra khi copy app sang máy hoặc tài khoản Windows khác. Nhập lại API key và mật khẩu |
+| Tải file lên không được | Vào trang quản lý extension của Chrome, mở chi tiết Playwright MCP Bridge, bật **Allow access to file URLs** |
+| Báo trùng tên khi chạy lại | Đổi dữ liệu (ví dụ tên) trước khi chạy |
+| Lỗi `Timeout` ở một bước | Ở Training, dùng **Gửi prompt** mô tả bước bị lỗi để AI sửa |
