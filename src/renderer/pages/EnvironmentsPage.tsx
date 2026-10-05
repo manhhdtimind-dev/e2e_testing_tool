@@ -11,10 +11,9 @@ interface EnvDraft {
   name: string;
   base_url: string;
   allowed_domains: string;
-  secret_fields: string;
 }
 
-const blankEnv = (): EnvDraft => ({ name: "", base_url: "", allowed_domains: "", secret_fields: "" });
+const blankEnv = (): EnvDraft => ({ name: "", base_url: "", allowed_domains: "" });
 
 function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; profiles: BrowserProfile[]; onSaved: (id: string) => void }) {
   const [d, setD] = useState<EnvDraft>(blankEnv());
@@ -33,7 +32,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
             name: env.name,
             base_url: env.base_url,
             allowed_domains: env.allowed_domains.join(", "),
-            secret_fields: env.secret_fields.join(", "),
           }
         : blankEnv(),
     );
@@ -54,7 +52,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           name: d.name,
           base_url: d.base_url,
           allowed_domains: d.allowed_domains.split(/[,\s]+/).filter(Boolean),
-          secret_fields: d.secret_fields.split(/[,\s]+/).filter(Boolean),
         }),
       "Đã lưu environment",
     );
@@ -73,14 +70,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           </Field>
           <Field label="Allowed domains" hint="Phân tách bằng dấu phẩy; hỗ trợ *.example.com. Domain của base URL luôn được thêm.">
             <input type="text" value={d.allowed_domains} onChange={(e) => setD({ ...d, allowed_domains: e.target.value })} />
-          </Field>
-        </div>
-        <div className="form-grid" style={{ marginTop: 14 }}>
-          <Field
-            label="Biến secret của environment (tuỳ chọn)"
-            hint="Đăng nhập trang web đã có Runner auth, không cần khai báo ở đây. Chỉ điền khi chính các bước test case phải gõ giá trị bí mật (vd: test trang đăng nhập, nhập API key vào form)."
-          >
-            <input type="text" value={d.secret_fields} onChange={(e) => setD({ ...d, secret_fields: e.target.value })} />
           </Field>
         </div>
         <div className="row end" style={{ marginTop: 14 }}>
@@ -148,7 +137,7 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
       {env && env.secret_fields.length > 0 && (
         <Panel title="Giá trị secret">
           <p className="hint" style={{ marginTop: 0 }}>
-            Chỉ dùng cho test case có bước gõ giá trị bí mật. Được mã hoá bằng khoá của hệ điều hành. Không xuất hiện trong test case, prompt, script hay log.
+            Các biến được tích Secret trong test case. Nhập giá trị thật cho environment này; giá trị được mã hoá bằng khoá của hệ điều hành và không xuất hiện trong test case, prompt, script hay log.
           </p>
           {env.secret_fields.map((f) => (
             <div className="row" key={f} style={{ marginBottom: 8 }}>

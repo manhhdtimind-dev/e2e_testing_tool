@@ -13,6 +13,7 @@ import { addFixtures, deleteFixture, listFixtures } from "./services/fixtures";
 import {
   deleteProfile,
   detectLocalProfiles,
+  environmentSecretFields,
   environmentSecretStatus,
   getEnvironment,
   getProfile,
@@ -161,7 +162,12 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
 
     // ---------- environments & profiles ----------
     listEnvironments: () =>
-      listEnvironments(ctx).map((e) => ({ ...e, runner_auth_ready: runnerAuthStatus(ctx, e), secret_status: environmentSecretStatus(ctx, e.environment_id) })),
+      listEnvironments(ctx).map((e) => ({
+        ...e,
+        secret_fields: environmentSecretFields(ctx, e),
+        runner_auth_ready: runnerAuthStatus(ctx, e),
+        secret_status: environmentSecretStatus(ctx, e.environment_id),
+      })),
     saveEnvironment: (input: EnvironmentInput) => saveEnvironment(ctx, input),
     setEnvironmentSecret: (envId: string, field: string, value: string) => setEnvironmentSecret(ctx, envId, field, value),
     beginRunnerLogin: (envId: string) => beginRunnerLogin(ctx, envId),

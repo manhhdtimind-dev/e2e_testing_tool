@@ -46,7 +46,7 @@ Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor*
    - Bấm **Đăng ký profile**.
 4. Mở Chrome bằng profile đó, đăng nhập trang web trên Chrome nếu chưa đăng nhập. Sau đó bấm **Chạy preflight**. Khi Chrome hỏi, bấm cho phép kết nối.
 
-Ô **Biến secret** và mục **Giá trị secret** để trống là được. Chúng chỉ cần khi chính test case phải gõ một giá trị bí mật, ví dụ test trang đăng nhập hoặc nhập API key vào form (xem mục 4).
+Mục **Giá trị secret** chỉ hiện khi có test case dùng biến bí mật, ví dụ test trang đăng nhập hoặc nhập API key vào form (xem mục 4). Bình thường bạn không cần làm gì ở đây.
 
 ### Bước 3 — Kiểm tra agent
 
@@ -99,8 +99,7 @@ Thay vì tự điền Excel, bạn có thể nhờ AI trong **Cursor** viết. A
 5. Làm theo những gì AI báo:
    - **Biến secret** (giá trị ghi là `SECRET`, hiếm gặp vì đăng nhập đã có Runner auth):
      1. Mở test case, tích cột **Secret** của biến đó.
-     2. Ở Environment, ghi tên biến vào ô **Biến secret**, bấm **Lưu environment**.
-     3. Nhập giá trị thật ở mục **Giá trị secret**.
+     2. Vào Environment. Biến đó tự hiện ở mục **Giá trị secret**: nhập giá trị thật rồi bấm **Lưu**.
    - **File mẫu** (ảnh, video… để tải lên): vào **Test Cases → File mẫu của dự án → Thêm file…**, chọn đúng file có tên như AI báo.
 
 ### Ví dụ yêu cầu

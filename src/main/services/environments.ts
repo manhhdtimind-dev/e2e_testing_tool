@@ -13,7 +13,8 @@ export interface EnvironmentInput {
   name: string;
   base_url: string;
   allowed_domains: string[];
-  secret_fields: string[];
+  /** Omitted by the UI: the existing list is kept. */
+  secret_fields?: string[];
 }
 
 export function listEnvironments(ctx: AppContext): Environment[] {
@@ -44,7 +45,7 @@ export function saveEnvironment(ctx: AppContext, input: EnvironmentInput): Envir
     allowed_domains: normalizeDomains(input.base_url, input.allowed_domains),
     runner_auth_ref: existing?.runner_auth_ref ?? null,
     runner_auth_updated_at: existing?.runner_auth_updated_at ?? null,
-    secret_fields: [...new Set(input.secret_fields.map((s) => s.trim()).filter(Boolean))],
+    secret_fields: [...new Set((input.secret_fields ?? existing?.secret_fields ?? []).map((s) => s.trim()).filter(Boolean))],
     created_at: existing?.created_at ?? ts,
     updated_at: ts,
   };
@@ -57,9 +58,16 @@ export function saveEnvironment(ctx: AppContext, input: EnvironmentInput): Envir
   return env;
 }
 
+/** Variables marked Secret in any test case, plus names saved on the environment before that existed. */
+export function environmentSecretFields(ctx: AppContext, env: Environment): string[] {
+  const names = new Set(env.secret_fields);
+  for (const tc of ctx.repo.testCases.where("1=1")) for (const f of tc.input_schema.fields) if (f.secret) names.add(f.name);
+  return [...names].sort();
+}
+
 export function setEnvironmentSecret(ctx: AppContext, envId: string, field: string, value: string) {
   const env = getEnvironment(ctx, envId);
-  if (!env.secret_fields.includes(field)) throw new AppError(`"${field}" không nằm trong danh sách secret của environment`);
+  if (!environmentSecretFields(ctx, env).includes(field)) throw new AppError(`"${field}" không phải biến secret của test case nào`);
   if (value) ctx.secrets.set(secretKeys.envSecret(envId, field), value);
   else ctx.secrets.delete(secretKeys.envSecret(envId, field));
   ctx.repo.audit("environment.secret.set", "environment", envId, { field, cleared: !value });
@@ -67,14 +75,14 @@ export function setEnvironmentSecret(ctx: AppContext, envId: string, field: stri
 
 export function environmentSecretStatus(ctx: AppContext, envId: string): Record<string, boolean> {
   const env = getEnvironment(ctx, envId);
-  return Object.fromEntries(env.secret_fields.map((f) => [f, ctx.secrets.has(secretKeys.envSecret(envId, f))]));
+  return Object.fromEntries(environmentSecretFields(ctx, env).map((f) => [f, ctx.secrets.has(secretKeys.envSecret(envId, f))]));
 }
 
 /** Real secret values for a run; never persisted outside the secret store. */
 export function environmentSecrets(ctx: AppContext, envId: string): Record<string, string> {
   const env = getEnvironment(ctx, envId);
   const out: Record<string, string> = {};
-  for (const f of env.secret_fields) {
+  for (const f of environmentSecretFields(ctx, env)) {
     const v = ctx.secrets.get(secretKeys.envSecret(envId, f));
     if (v) out[f] = v;
   }
