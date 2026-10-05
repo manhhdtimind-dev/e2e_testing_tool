@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, shell } from "electron";
 import { existsSync, mkdirSync } from "node:fs";
-import { extname, join } from "node:path";
+import { join } from "node:path";
 import type { AgentProvider, InputValues, ParsedTestCase, ProjectTarget, ReviewResult, Settings } from "../shared/types";
 import type { AppContext } from "./context";
 import { fromArtifactRef, paths } from "./paths";
@@ -8,7 +8,7 @@ import { AppError } from "./util";
 import { updateSettings } from "./services/settings";
 import { secretKeys } from "./services/secrets";
 import { confirmImport, deleteImpact, deleteProject, deleteTestCase, listProjects, previewImport, saveTestCase, updateSampleInput, type TestCaseInput } from "./services/testCases";
-import { writeSampleCsv, writeSampleXlsx } from "./services/sampleTemplate";
+import { writeSampleXlsx } from "./services/sampleTemplate";
 import { addFixtures, deleteFixture, listFixtures } from "./services/fixtures";
 import {
   deleteProfile,
@@ -53,6 +53,8 @@ import { getIntegrationStatus, runIntegrationCheck } from "./training/integratio
 import { cancelRecording, finishRecording, isRecording, recordingState, startRecording } from "./recording/session";
 
 const RECORDING_BUSY = "Test case này đang được ghi thao tác; kết thúc hoặc huỷ phiên ghi trước.";
+const templatesDir = () => join(paths().data, "templates");
+
 export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
   const saveDialog = async (defaultPath: string, filters: Electron.FileFilter[]) => {
     const w = win();
@@ -118,34 +120,24 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
     getTestCase: (testId: string) => ctx.repo.testCases.get(testId) ?? null,
     pickAndPreviewImport: async () => {
       const w = win();
-      const opts: Electron.OpenDialogOptions = { properties: ["openFile"], filters: [{ name: "Test cases", extensions: ["xlsx", "csv", "yaml", "yml"] }] };
+      const opts: Electron.OpenDialogOptions = {
+        properties: ["openFile"],
+        filters: [{ name: "Test cases", extensions: ["xlsx", "csv", "yaml", "yml"] }],
+        defaultPath: existsSync(templatesDir()) ? templatesDir() : undefined,
+      };
       const res = w ? await dialog.showOpenDialog(w, opts) : await dialog.showOpenDialog(opts);
       if (res.canceled || !res.filePaths[0]) return null;
       return previewImport(res.filePaths[0]);
     },
     openSampleTemplate: async () => {
-      const dir = join(paths().data, "templates");
+      const dir = templatesDir();
       mkdirSync(dir, { recursive: true });
-      const file = join(dir, "test-cases-mau.xlsx");
-      try {
-        await writeSampleXlsx(file);
-      } catch (e) {
-        // Excel keeps the file locked while it is open; reopening the existing copy is fine.
-        if (!existsSync(file)) throw e;
-      }
+      // Users fill in and save the opened copy, so never overwrite an existing one.
+      let file = join(dir, "test-cases-mau.xlsx");
+      for (let i = 2; existsSync(file); i++) file = join(dir, `test-cases-mau (${i}).xlsx`);
+      await writeSampleXlsx(file);
       const err = await shell.openPath(file);
       if (err) throw new AppError(`Không mở được file mẫu (${file}): ${err}`);
-      return file;
-    },
-    saveSampleTemplate: async () => {
-      const file = await saveDialog("test-cases-mau.xlsx", [
-        { name: "Excel", extensions: ["xlsx"] },
-        { name: "CSV", extensions: ["csv"] },
-      ]);
-      if (!file) return null;
-      if (extname(file).toLowerCase() === ".csv") await writeSampleCsv(file);
-      else await writeSampleXlsx(file);
-      shell.showItemInFolder(file);
       return file;
     },
     confirmImport: (fileName: string, project: ProjectTarget, cases: ParsedTestCase[]) => confirmImport(ctx, fileName, project, cases),

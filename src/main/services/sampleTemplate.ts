@@ -1,7 +1,5 @@
-import { writeFile } from "node:fs/promises";
 import ExcelJS from "exceljs";
-import Papa from "papaparse";
-import { REQUIRED_COLUMNS } from "../../core/parser";
+import type { REQUIRED_COLUMNS } from "../../core/parser";
 
 type SampleRow = Record<(typeof REQUIRED_COLUMNS)[number], string> & { group: string };
 
@@ -79,11 +77,4 @@ export async function writeSampleXlsx(filePath: string) {
   });
 
   await wb.xlsx.writeFile(filePath);
-}
-
-/** CSV has no sheets: the whole file is one group named after the file. */
-export async function writeSampleCsv(filePath: string) {
-  const csv = Papa.unparse(SAMPLE_ROWS, { columns: [...REQUIRED_COLUMNS], newline: "\r\n" });
-  // BOM so Excel opens the Vietnamese text as UTF-8.
-  await writeFile(filePath, `\uFEFF${csv}`, "utf8");
 }

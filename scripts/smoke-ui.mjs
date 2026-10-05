@@ -105,6 +105,11 @@ try {
   await win.waitForTimeout(1500);
   const opened = await app.evaluate(() => globalThis.__opened);
   check(opened.length === 1 && opened[0].endsWith("test-cases-mau.xlsx") && existsSync(opened[0]), `Mở file mẫu tạo ${opened[0] ?? "(không có)"}`);
+  await win.getByRole("button", { name: "Mở file mẫu" }).first().click();
+  await win.waitForTimeout(1500);
+  const reopened = await app.evaluate(() => globalThis.__opened);
+  check(reopened.length === 2 && reopened[1].endsWith("test-cases-mau (2).xlsx") && existsSync(reopened[0]), `Mở file mẫu lần 2 tạo bản mới, không ghi đè (${reopened[1] ?? "(không có)"})`);
+  check((await win.getByRole("button", { name: /Lưu file mẫu/ }).count()) === 0, "Không còn nút Lưu file mẫu");
 
   // ---------- import ----------
   await app.evaluate(({ dialog }, p) => {

@@ -620,6 +620,10 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
     if (filter.project !== ALL && filter.project !== projectId) filter.setProject(projectId ?? ALL);
     else if (filter.group !== ALL && filter.group !== group) filter.setGroup(ALL);
   };
+  const openSample = async () => {
+    const f = await run(() => api.openSampleTemplate());
+    if (f) toast("Đã mở file mẫu bằng Excel. Điền xong bấm Ctrl+S để lưu, rồi bấm Import để chọn file đó.", "ok");
+  };
 
   return (
     <div>
@@ -627,18 +631,8 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
         <h1>Test Cases</h1>
         <p>Test case theo dự án và nhóm (mỗi sheet Excel là một nhóm).</p>
         <div className="actions">
-          <button className="btn ghost" disabled={busy} onClick={() => run(() => api.openSampleTemplate())} title="Mở file .xlsx mẫu bằng ứng dụng mặc định (Excel)">
+          <button className="btn ghost" disabled={busy} onClick={openSample} title="Tạo một file Excel mẫu mới và mở bằng Excel">
             Mở file mẫu
-          </button>
-          <button
-            className="btn ghost"
-            disabled={busy}
-            onClick={async () => {
-              const f = await run(() => api.saveSampleTemplate());
-              if (f) toast(`Đã lưu file mẫu: ${f}`, "ok");
-            }}
-          >
-            Lưu file mẫu…
           </button>
           <button
             className="btn"
@@ -663,7 +657,7 @@ export function TestCasesPage({ onTrain, onTest }: { onTrain: (testId: string) =
               <div className="empty">
                 Chưa có test case. Import file theo template gồm cột test_id, title, steps, input, expected_result.
                 <div style={{ marginTop: 10 }}>
-                  <button className="btn sm" disabled={busy} onClick={() => run(() => api.openSampleTemplate())}>
+                  <button className="btn sm" disabled={busy} onClick={openSample}>
                     Mở file mẫu
                   </button>
                 </div>

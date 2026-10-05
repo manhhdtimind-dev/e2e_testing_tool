@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { GUIDE_SHEET, SAMPLE_ROWS, writeSampleCsv, writeSampleXlsx } from "../src/main/services/sampleTemplate";
+import { GUIDE_SHEET, SAMPLE_ROWS, writeSampleXlsx } from "../src/main/services/sampleTemplate";
 import { previewImport } from "../src/main/services/testCases";
 import { stepDirectives } from "../src/core/stepDirectives";
 
@@ -10,9 +10,9 @@ const dir = mkdtempSync(join(tmpdir(), "e2e-sample-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe("sample test case template", () => {
-  it.each(["xlsx", "csv"])("imports the %s sample without issues", async (ext) => {
-    const file = join(dir, `sample.${ext}`);
-    await (ext === "xlsx" ? writeSampleXlsx(file) : writeSampleCsv(file));
+  it("imports the xlsx sample without issues", async () => {
+    const file = join(dir, "sample.xlsx");
+    await writeSampleXlsx(file);
     const preview = await previewImport(file);
     expect(preview.issues).toEqual([]);
     expect(preview.cases.map((c) => c.test_id)).toEqual(SAMPLE_ROWS.map((r) => r.test_id));
@@ -29,12 +29,5 @@ describe("sample test case template", () => {
     const preview = await previewImport(file);
     expect(preview.cases.map((c) => c.group)).toEqual(SAMPLE_ROWS.map((r) => r.group));
     expect(preview.skipped_sheets).toEqual([GUIDE_SHEET]);
-  });
-
-  it("puts the whole csv sample in one group named after the file", async () => {
-    const file = join(dir, "Campaign.csv");
-    await writeSampleCsv(file);
-    const preview = await previewImport(file);
-    expect(new Set(preview.cases.map((c) => c.group))).toEqual(new Set(["Campaign"]));
   });
 });

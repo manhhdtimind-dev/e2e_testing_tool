@@ -49,8 +49,8 @@ Sau đó chọn agent và bấm **Kiểm tra tích hợp agent**. Kết quả b�
 
 ## 3. Thêm test case
 
-1. Vào **Test Cases**, bấm **Lưu file mẫu…** để lấy file Excel mẫu.
-2. Điền mỗi dòng một test case:
+1. Vào **Test Cases**, bấm **Mở file mẫu**. Excel sẽ mở một file mẫu mới.
+2. Điền mỗi dòng một test case, rồi bấm **Ctrl+S** để lưu:
 
 | Cột | Ghi gì | Ví dụ |
 |---|---|---|
@@ -63,7 +63,7 @@ Sau đó chọn agent và bấm **Kiểm tra tích hợp agent**. Kết quả b�
    - Chỗ nào dữ liệu thay đổi được thì viết trong steps dạng `{{campaign_name}}`, và ghi giá trị ở cột input.
    - Muốn chụp ảnh ở đâu thì thêm một bước `Chụp màn hình`.
    - Mỗi sheet trong Excel là một nhóm test case.
-3. Bấm **Import .xlsx / .csv**, chọn dự án và file, kiểm tra rồi bấm **Xác nhận và lưu**.
+3. Bấm **Import .xlsx / .csv**, chọn dự án, chọn file vừa lưu (hộp chọn file mở sẵn thư mục chứa file mẫu), kiểm tra rồi bấm **Xác nhận và lưu**.
 
 ---
 
