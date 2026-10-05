@@ -7,7 +7,7 @@
 ## 1. Cài đặt
 
 1. Cài **Google Chrome** (nếu máy chưa có).
-2. Mở Chrome, vào Chrome Web Store, tìm và cài extension **Playwright MCP Bridge**.
+2. Mở Chrome bằng profile sẽ dùng cho Training, rồi cài extension **Playwright MCP Bridge**: mở [trang extension trên Chrome Web Store](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm) và bấm **Add to Chrome** (Thêm vào Chrome).
 3. Giải nén file `E2E-AI-Trainer-...-portable-x64.zip` vào một thư mục, ví dụ `D:\E2E AI Trainer`.
    - Không đặt trong `C:\Program Files`.
 4. Mở thư mục đó, chạy **E2E AI Trainer.exe**.
