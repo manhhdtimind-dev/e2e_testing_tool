@@ -90,8 +90,8 @@ export function HistoryPage({ onOpenTraining }: { onOpenTraining: (testId: strin
                   <span>Agent</span>
                   <select value={filter.agent} onChange={(e) => setFilter({ ...filter, agent: e.target.value as AgentProvider | "" })}>
                     <option value="">Tất cả</option>
-                    <option value="codex">Codex</option>
                     <option value="cursor">Cursor</option>
+                    <option value="codex">Codex</option>
                   </select>
                 </label>
                 <label className="field">

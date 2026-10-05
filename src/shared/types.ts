@@ -1,4 +1,6 @@
 export type AgentProvider = "codex" | "cursor";
+/** UI order; the first agent is preselected for test cases without a script. */
+export const AGENT_ORDER: AgentProvider[] = ["cursor", "codex"];
 
 /** `file`: the value is the name of a file in the project's fixtures folder; scripts receive its absolute path. */
 export type FieldType = "string" | "number" | "boolean" | "file";

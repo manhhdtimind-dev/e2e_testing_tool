@@ -21,14 +21,12 @@ Dữ liệu của app nằm trong thư mục `data` cạnh file exe. Muốn sao 
 
 ### Bước 1 — Cài đặt (góc phải trên cùng)
 
-Chỉ cần dùng được **một** trong hai agent:
+Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor**.
 
+- **Cursor** (mặc định): nhập **Cursor API key**. Đã đăng nhập phần mềm Cursor vẫn phải nhập key. Key lấy ở trang tài khoản trên cursor.com.
 - **Codex**:
-  - Nếu máy này đã đăng nhập Codex bằng tài khoản ChatGPT (qua app Codex, extension Codex trong VS Code/Cursor, hoặc Codex CLI) với cùng tài khoản Windows, thì **không cần nhập key**. Để trống ô OpenAI API key.
+  - Nếu máy này đã đăng nhập Codex bằng tài khoản ChatGPT, với cùng tài khoản Windows, thì **không cần nhập key**. Để trống ô OpenAI API key. Đăng nhập qua app Codex, extension Codex trong VS Code/Cursor, hoặc Codex CLI đều được.
   - Nếu chưa đăng nhập, nhập **OpenAI API key**.
-- **Cursor**: luôn phải nhập **Cursor API key**, kể cả khi đã đăng nhập phần mềm Cursor. Key lấy ở trang tài khoản trên cursor.com.
-
-Sau đó chọn agent và bấm **Kiểm tra tích hợp agent**. Kết quả báo thành công là được.
 
 ### Bước 2 — Environment (trang web cần kiểm thử)
 
@@ -44,6 +42,10 @@ Sau đó chọn agent và bấm **Kiểm tra tích hợp agent**. Kết quả b�
    - Bấm **Chọn từ profile trên máy**, chọn profile Chrome đã cài extension.
    - Bấm **Đăng ký profile**.
 5. Mở Chrome bằng profile đó, rồi bấm **Chạy preflight**. Khi Chrome hỏi, bấm cho phép kết nối.
+
+### Bước 3 — Kiểm tra agent
+
+Quay lại **Cài đặt**. Ở mục **Kiểm tra tích hợp agent**, bấm **Chạy kiểm tra** ở dòng **Cursor** (hoặc Codex nếu bạn dùng Codex). Kết quả báo thành công là được.
 
 ---
 
@@ -69,7 +71,7 @@ Sau đó chọn agent và bấm **Kiểm tra tích hợp agent**. Kết quả b�
 
 ## 4. Training — tạo kịch bản
 
-Vào **Training**, chọn test case, Environment và Chrome profile. Sau đó dùng một trong ba nút:
+Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặc định là **Cursor**). Sau đó dùng một trong ba nút:
 
 | Nút | Dùng khi |
 |---|---|
@@ -112,6 +114,7 @@ Vào **Training**, chọn test case, Environment và Chrome profile. Sau đó d�
 | `PROFILE_UNAVAILABLE` / preflight lỗi | Mở Chrome đúng profile, kiểm tra extension Playwright MCP Bridge đang bật, bấm cho phép kết nối |
 | `AUTH_REQUIRED` | Phiên đăng nhập hết hạn. Vào Environment, Runner auth, đăng nhập lại và bấm **Lưu phiên đăng nhập** |
 | "Không giải mã được secret" | Xảy ra khi copy app sang máy hoặc tài khoản Windows khác. Nhập lại API key và mật khẩu |
+| "Chưa cấu hình Cursor API key" | Vào Cài đặt nhập Cursor API key, hoặc chọn Codex ở Training |
 | Codex báo lỗi đăng nhập dù không nhập key | Phiên đăng nhập Codex trên máy đã hết hạn hoặc thuộc tài khoản Windows khác. Đăng nhập lại Codex, hoặc nhập OpenAI API key |
 | Tải file lên không được | Vào trang quản lý extension của Chrome, mở chi tiết Playwright MCP Bridge, bật **Allow access to file URLs** |
 | Báo trùng tên khi chạy lại | Đổi dữ liệu (ví dụ tên) trước khi chạy |

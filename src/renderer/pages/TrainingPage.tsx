@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { AgentProvider, BrowserProfile, CandidateRevision, InputValues, PreflightResult, RecordingState, TrainingAttempt, TrainingEvent, TrialRun } from "../../shared/types";
+import { AGENT_ORDER, type AgentProvider, type BrowserProfile, type CandidateRevision, type InputValues, type PreflightResult, type RecordingState, type TrainingAttempt, type TrainingEvent, type TrialRun } from "../../shared/types";
 import { api, useAppEvent, type ApiResult } from "../api";
 import { ArtifactImage, Badge, CaseOptions, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useConfirm, useToast } from "../components/ui";
 
@@ -83,7 +83,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
   const [integration, setIntegration] = useState<Integration | null>(null);
   const [testId, setTestId] = useState(intent?.test_id ?? "");
   const [envId, setEnvId] = useState(intent?.environment_id ?? "");
-  const [agent, setAgent] = useState<AgentProvider>("codex");
+  const [agent, setAgent] = useState<AgentProvider>(AGENT_ORDER[0]);
   const [profileId, setProfileId] = useState("");
   const [contextRef, setContextRef] = useState<TrainingIntent["context_ref"] | null>(intent?.context_ref ?? null);
   const [contextLabel, setContextLabel] = useState(intent?.context_label ?? "");
@@ -322,7 +322,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
           <div className="field">
             <span>Agent</span>
             <div className="segmented" role="group" aria-label="Chọn agent">
-              {(["codex", "cursor"] as AgentProvider[]).map((a) => (
+              {AGENT_ORDER.map((a) => (
                 <button key={a} className={agent === a ? "on" : ""} onClick={() => setAgent(a)}>
                   {AGENT_LABEL[a]}
                 </button>

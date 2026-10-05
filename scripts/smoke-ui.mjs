@@ -377,6 +377,10 @@ try {
     ["Ghi thao tác…", "Agent Training Auto", "Gửi prompt"].every((b) => trainButtons.includes(b)) && /Gửi prompt sửa candidate #\d+/.test(await trainHint.innerText()),
     `Training có 3 nút Ghi thao tác / Agent Training Auto / Gửi prompt, ghi rõ candidate đang sửa (${trainButtons.join(" | ")})`,
   );
+  const agentGroup = win.getByRole("group", { name: "Chọn agent" });
+  const agentButtons = await agentGroup.getByRole("button").allInnerTexts();
+  const agentOn = await agentGroup.locator("button.on").innerText();
+  check(agentButtons.join(",") === "Cursor,Codex" && agentOn === "Codex", `Training: Cursor đứng trước; script đã train bằng Codex vẫn chọn Codex (${agentButtons.join(",")}; chọn ${agentOn})`);
   await shot("08-send-to-training");
   await win.locator(".panel", { has: trainHint }).screenshot({ path: join(shots, "08a-training-buttons.png") });
 

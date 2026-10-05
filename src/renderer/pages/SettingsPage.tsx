@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AgentProvider, BrowserProfile, CodexReasoningEffort, Settings } from "../../shared/types";
+import { AGENT_ORDER, type AgentProvider, type BrowserProfile, type CodexReasoningEffort, type Settings } from "../../shared/types";
 import { api, type ApiResult } from "../api";
 import { Badge, Field, Panel, fmtTime, useAction } from "../components/ui";
 
@@ -46,19 +46,6 @@ export function SettingsPage() {
       <div className="stack" style={{ maxWidth: 980 }}>
         <Panel title="Agent">
           <div className="form-grid">
-            <Field label="OpenAI API key cho Codex" hint={settings.has_openai_key ? "Đã lưu. Nhập để thay." : "Tuỳ chọn nếu Codex CLI đã đăng nhập (codex login)."}>
-              <div className="row">
-                <input type="password" style={{ flex: 1 }} value={keys.codex} onChange={(e) => setKeys({ ...keys, codex: e.target.value })} />
-                <button className="btn sm" disabled={busy || !keys.codex} onClick={() => run(() => api.setApiKey("codex", keys.codex), "Đã lưu key").then((s) => s && (setSettings(s), setKeys({ ...keys, codex: "" })))}>
-                  Lưu
-                </button>
-                {settings.has_openai_key && (
-                  <button className="btn sm" onClick={() => run(() => api.setApiKey("codex", ""), "Đã xoá key").then((s) => s && setSettings(s))}>
-                    Xoá
-                  </button>
-                )}
-              </div>
-            </Field>
             <Field label="Cursor API key" hint={settings.has_cursor_key ? "Đã lưu. Nhập để thay." : "Bắt buộc để dùng Cursor SDK."}>
               <div className="row">
                 <input type="password" style={{ flex: 1 }} value={keys.cursor} onChange={(e) => setKeys({ ...keys, cursor: e.target.value })} />
@@ -67,6 +54,22 @@ export function SettingsPage() {
                 </button>
                 {settings.has_cursor_key && (
                   <button className="btn sm" onClick={() => run(() => api.setApiKey("cursor", ""), "Đã xoá key").then((s) => s && setSettings(s))}>
+                    Xoá
+                  </button>
+                )}
+              </div>
+            </Field>
+            <Field label="Model Cursor">
+              <input type="text" value={settings.cursor_model} onChange={(e) => setSettings({ ...settings, cursor_model: e.target.value })} />
+            </Field>
+            <Field label="OpenAI API key cho Codex" hint={settings.has_openai_key ? "Đã lưu. Nhập để thay." : "Tuỳ chọn nếu Codex CLI đã đăng nhập (codex login)."}>
+              <div className="row">
+                <input type="password" style={{ flex: 1 }} value={keys.codex} onChange={(e) => setKeys({ ...keys, codex: e.target.value })} />
+                <button className="btn sm" disabled={busy || !keys.codex} onClick={() => run(() => api.setApiKey("codex", keys.codex), "Đã lưu key").then((s) => s && (setSettings(s), setKeys({ ...keys, codex: "" })))}>
+                  Lưu
+                </button>
+                {settings.has_openai_key && (
+                  <button className="btn sm" onClick={() => run(() => api.setApiKey("codex", ""), "Đã xoá key").then((s) => s && setSettings(s))}>
                     Xoá
                   </button>
                 )}
@@ -87,9 +90,6 @@ export function SettingsPage() {
                 <option value="xhigh">xhigh — chậm, tốn nhất</option>
                 <option value="">Theo cấu hình Codex cá nhân</option>
               </select>
-            </Field>
-            <Field label="Model Cursor">
-              <input type="text" value={settings.cursor_model} onChange={(e) => setSettings({ ...settings, cursor_model: e.target.value })} />
             </Field>
           </div>
         </Panel>
@@ -197,7 +197,7 @@ export function SettingsPage() {
               ))}
             </select>
           </div>
-          {(["codex", "cursor"] as AgentProvider[]).map((a) => {
+          {AGENT_ORDER.map((a) => {
             const r = integration?.[a];
             return (
               <div key={a} className="panel" style={{ padding: 12, marginBottom: 10 }}>
