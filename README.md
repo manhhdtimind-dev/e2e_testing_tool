@@ -35,15 +35,18 @@ Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor*
 1. Bấm **Thêm**, rồi nhập:
    - **Tên**.
    - **Base URL**, ví dụ `https://app.example.com`.
-2. Nếu trang cần mật khẩu, nhập ở mục **Giá trị secret**. Không ghi mật khẩu vào file test case.
-3. Ở mục **Runner auth**:
+   - Bấm **Lưu environment**.
+2. Ở mục **Runner auth**:
    - Bấm **Mở trình duyệt để đăng nhập**.
    - Đăng nhập trang web như bình thường.
    - Bấm **Lưu phiên đăng nhập**.
-4. Ở mục **Chrome profiles cho Training**:
+   - App nhớ phiên này, nên test case **không cần** bước đăng nhập hay mật khẩu.
+3. Ở mục **Chrome profiles cho Training**:
    - Bấm **Chọn từ profile trên máy**, chọn profile Chrome đã cài extension.
    - Bấm **Đăng ký profile**.
-5. Mở Chrome bằng profile đó, rồi bấm **Chạy preflight**. Khi Chrome hỏi, bấm cho phép kết nối.
+4. Mở Chrome bằng profile đó, đăng nhập trang web trên Chrome nếu chưa đăng nhập. Sau đó bấm **Chạy preflight**. Khi Chrome hỏi, bấm cho phép kết nối.
+
+Ô **Biến secret** và mục **Giá trị secret** để trống là được. Chúng chỉ cần khi chính test case phải gõ một giá trị bí mật, ví dụ test trang đăng nhập hoặc nhập API key vào form (xem mục 4).
 
 ### Bước 3 — Kiểm tra agent
 
@@ -90,11 +93,14 @@ Thay vì tự điền Excel, bạn có thể nhờ AI trong **Cursor** viết. A
 3. AI tạo file `.xlsx`, thường trong thư mục `test-cases\`, rồi báo lại:
    - tên dự án nên chọn khi Import;
    - danh sách test case;
-   - các biến là mật khẩu (secret);
+   - các biến bí mật (secret), nếu có;
    - các file mẫu cần thêm.
 4. Mở file bằng Excel xem lại, rồi Import như **mục 3, bước 3**.
 5. Làm theo những gì AI báo:
-   - **Biến secret** (giá trị ghi là `SECRET`): mở test case, tích cột **Secret** của biến đó, rồi nhập giá trị thật ở **Environment → Giá trị secret**.
+   - **Biến secret** (giá trị ghi là `SECRET`, hiếm gặp vì đăng nhập đã có Runner auth):
+     1. Mở test case, tích cột **Secret** của biến đó.
+     2. Ở Environment, ghi tên biến vào ô **Biến secret**, bấm **Lưu environment**.
+     3. Nhập giá trị thật ở mục **Giá trị secret**.
    - **File mẫu** (ảnh, video… để tải lên): vào **Test Cases → File mẫu của dự án → Thêm file…**, chọn đúng file có tên như AI báo.
 
 ### Ví dụ yêu cầu
@@ -103,7 +109,7 @@ Thay vì tự điền Excel, bạn có thể nhờ AI trong **Cursor** viết. A
 |---|---|
 | Có source code, cần test một trang | `Viết test case cho trang Quản lý sản phẩm, dự án Shop Admin` |
 | Nhiều tính năng, mỗi tính năng một sheet | `Viết test case cho Đăng nhập, Tạo campaign và Báo cáo, mỗi tính năng một sheet, lưu vào test-cases/ads-tool.xlsx` |
-| Không có code, chỉ mô tả | `Viết test case đăng nhập cho https://app.example.com: có ô "Email", ô "Mật khẩu", nút "Đăng nhập"; sai mật khẩu thì hiện "Sai thông tin đăng nhập"` |
+| Không có code, chỉ mô tả | `Viết test case tạo đơn hàng cho https://app.example.com: trang Đơn hàng có nút "Tạo đơn", ô "Khách hàng", ô "Số lượng", bấm "Lưu" thì hiện "Đã tạo đơn"` |
 | Có tài liệu yêu cầu | `Đọc file docs/yeu-cau.md rồi viết test case cho phần Tạo đơn hàng` |
 | Có tải file lên | `Viết test case tải ảnh banner ở trang Assets, gồm cả trường hợp file sai định dạng` |
 | Chỉ cần case lỗi / kiểm tra dữ liệu | `Viết 5 test case negative cho form Tạo campaign (bỏ trống tên, ngân sách âm, ngày kết thúc trước ngày bắt đầu…), lưu thành file mới` |
@@ -113,7 +119,7 @@ Mẹo:
 
 - Nói rõ **tên dự án** để AI đặt mã test case không trùng với dự án khác.
 - Muốn thêm case cho file đã có, bảo AI **lưu thành file mới** rồi Import vào cùng dự án. Test case cũ vẫn giữ nguyên.
-- AI không tự điền mật khẩu thật. Nếu file có chữ `SECRET`, đó là chỗ bạn cần nhập giá trị ở Environment.
+- Không cần nhắc AI về đăng nhập: test case bắt đầu từ trạng thái đã đăng nhập sẵn.
 
 ---
 
@@ -161,7 +167,7 @@ Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặ
 |---|---|
 | `PROFILE_UNAVAILABLE` / preflight lỗi | Mở Chrome đúng profile, kiểm tra extension Playwright MCP Bridge đang bật, bấm cho phép kết nối |
 | `AUTH_REQUIRED` | Phiên đăng nhập hết hạn. Vào Environment, Runner auth, đăng nhập lại và bấm **Lưu phiên đăng nhập** |
-| "Không giải mã được secret" | Xảy ra khi copy app sang máy hoặc tài khoản Windows khác. Nhập lại API key và mật khẩu |
+| "Không giải mã được secret" | Xảy ra khi copy app sang máy hoặc tài khoản Windows khác. Nhập lại API key, đăng nhập lại ở Runner auth |
 | "Chưa cấu hình Cursor API key" | Vào Cài đặt nhập Cursor API key, hoặc chọn Codex ở Training |
 | Codex báo lỗi đăng nhập dù không nhập key | Phiên đăng nhập Codex trên máy đã hết hạn hoặc thuộc tài khoản Windows khác. Đăng nhập lại Codex, hoặc nhập OpenAI API key |
 | Tải file lên không được | Vào trang quản lý extension của Chrome, mở chi tiết Playwright MCP Bridge, bật **Allow access to file URLs** |

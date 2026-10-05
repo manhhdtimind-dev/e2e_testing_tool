@@ -76,7 +76,10 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           </Field>
         </div>
         <div className="form-grid" style={{ marginTop: 14 }}>
-          <Field label="Biến secret của environment" hint="Tên biến input lấy giá trị từ kho secret (vd: password)">
+          <Field
+            label="Biến secret của environment (tuỳ chọn)"
+            hint="Đăng nhập trang web đã có Runner auth, không cần khai báo ở đây. Chỉ điền khi chính các bước test case phải gõ giá trị bí mật (vd: test trang đăng nhập, nhập API key vào form)."
+          >
             <input type="text" value={d.secret_fields} onChange={(e) => setD({ ...d, secret_fields: e.target.value })} />
           </Field>
         </div>
@@ -86,34 +89,6 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           </button>
         </div>
       </Panel>
-
-      {env && env.secret_fields.length > 0 && (
-        <Panel title="Giá trị secret">
-          <p className="hint" style={{ marginTop: 0 }}>
-            Được mã hoá bằng khoá của hệ điều hành. Không xuất hiện trong test case, prompt, script hay log.
-          </p>
-          {env.secret_fields.map((f) => (
-            <div className="row" key={f} style={{ marginBottom: 8 }}>
-              <span className="mono" style={{ width: 160 }}>
-                {f}
-              </span>
-              <Badge status={env.secret_status[f] ? "PASSED" : "PENDING"} title={env.secret_status[f] ? "Đã lưu" : "Chưa có"} />
-              <input type="password" placeholder={env.secret_status[f] ? "Nhập để thay giá trị" : "Nhập giá trị"} value={secretValues[f] ?? ""} onChange={(e) => setSecretValues({ ...secretValues, [f]: e.target.value })} />
-              <button
-                className="btn sm"
-                disabled={busy || !secretValues[f]}
-                onClick={async () => {
-                  await run(() => api.setEnvironmentSecret(env.environment_id, f, secretValues[f]), `Đã lưu secret ${f}`);
-                  setSecretValues({ ...secretValues, [f]: "" });
-                  onSaved(env.environment_id);
-                }}
-              >
-                Lưu
-              </button>
-            </div>
-          ))}
-        </Panel>
-      )}
 
       {env && (
         <Panel title="Runner auth (Trial / Testing)">
@@ -167,6 +142,34 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
               </button>
             )}
           </div>
+        </Panel>
+      )}
+
+      {env && env.secret_fields.length > 0 && (
+        <Panel title="Giá trị secret">
+          <p className="hint" style={{ marginTop: 0 }}>
+            Chỉ dùng cho test case có bước gõ giá trị bí mật. Được mã hoá bằng khoá của hệ điều hành. Không xuất hiện trong test case, prompt, script hay log.
+          </p>
+          {env.secret_fields.map((f) => (
+            <div className="row" key={f} style={{ marginBottom: 8 }}>
+              <span className="mono" style={{ width: 160 }}>
+                {f}
+              </span>
+              <Badge status={env.secret_status[f] ? "PASSED" : "PENDING"} title={env.secret_status[f] ? "Đã lưu" : "Chưa có"} />
+              <input type="password" placeholder={env.secret_status[f] ? "Nhập để thay giá trị" : "Nhập giá trị"} value={secretValues[f] ?? ""} onChange={(e) => setSecretValues({ ...secretValues, [f]: e.target.value })} />
+              <button
+                className="btn sm"
+                disabled={busy || !secretValues[f]}
+                onClick={async () => {
+                  await run(() => api.setEnvironmentSecret(env.environment_id, f, secretValues[f]), `Đã lưu secret ${f}`);
+                  setSecretValues({ ...secretValues, [f]: "" });
+                  onSaved(env.environment_id);
+                }}
+              >
+                Lưu
+              </button>
+            </div>
+          ))}
         </Panel>
       )}
 
