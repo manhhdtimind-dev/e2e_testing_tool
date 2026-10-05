@@ -12,6 +12,7 @@ const SPEED_PRESETS = [
 ];
 
 type Integration = ApiResult<"getIntegrationStatus">;
+type CursorModels = { list: ApiResult<"listCursorModels"> } | { error: string };
 type EnvRow = ApiResult<"listEnvironments">[number];
 
 export function SettingsPage() {
@@ -22,11 +23,21 @@ export function SettingsPage() {
   const [envs, setEnvs] = useState<EnvRow[]>([]);
   const [check, setCheck] = useState({ profile: "", env: "" });
   const [checking, setChecking] = useState<AgentProvider | null>(null);
+  const [cursorModels, setCursorModels] = useState<CursorModels | null>(null);
   const { run, busy } = useAction();
+
+  const loadCursorModels = () => {
+    setCursorModels(null);
+    api.listCursorModels().then(
+      (list) => setCursorModels({ list }),
+      (e: Error) => setCursorModels({ error: e.message }),
+    );
+  };
 
   useEffect(() => {
     void Promise.all([api.getSettings(), api.getIntegrationStatus(), api.listProfiles(), api.listEnvironments()]).then(([s, i, p, e]) => {
       setSettings(s);
+      if (s.has_cursor_key) loadCursorModels();
       setIntegration(i);
       setProfiles(p);
       setEnvs(e);
@@ -49,19 +60,28 @@ export function SettingsPage() {
             <Field label="Cursor API key" hint={settings.has_cursor_key ? "Đã lưu. Nhập để thay." : "Bắt buộc để dùng Cursor SDK."}>
               <div className="row">
                 <input type="password" style={{ flex: 1 }} value={keys.cursor} onChange={(e) => setKeys({ ...keys, cursor: e.target.value })} />
-                <button className="btn sm" disabled={busy || !keys.cursor} onClick={() => run(() => api.setApiKey("cursor", keys.cursor), "Đã lưu key").then((s) => s && (setSettings(s), setKeys({ ...keys, cursor: "" })))}>
+                <button
+                  className="btn sm"
+                  disabled={busy || !keys.cursor}
+                  onClick={() =>
+                    run(() => api.setApiKey("cursor", keys.cursor), "Đã lưu key").then((s) => {
+                      if (!s) return;
+                      setSettings(s);
+                      setKeys({ ...keys, cursor: "" });
+                      loadCursorModels();
+                    })
+                  }
+                >
                   Lưu
                 </button>
                 {settings.has_cursor_key && (
-                  <button className="btn sm" onClick={() => run(() => api.setApiKey("cursor", ""), "Đã xoá key").then((s) => s && setSettings(s))}>
+                  <button className="btn sm" onClick={() => run(() => api.setApiKey("cursor", ""), "Đã xoá key").then((s) => s && (setSettings(s), setCursorModels(null)))}>
                     Xoá
                   </button>
                 )}
               </div>
             </Field>
-            <Field label="Model Cursor">
-              <input type="text" value={settings.cursor_model} onChange={(e) => setSettings({ ...settings, cursor_model: e.target.value })} />
-            </Field>
+            <CursorModelField value={settings.cursor_model} hasKey={settings.has_cursor_key} models={cursorModels} onChange={(cursor_model) => setSettings({ ...settings, cursor_model })} onReload={loadCursorModels} />
             <Field label="OpenAI API key cho Codex" hint={settings.has_openai_key ? "Đã lưu. Nhập để thay." : "Tuỳ chọn nếu Codex CLI đã đăng nhập (codex login)."}>
               <div className="row">
                 <input type="password" style={{ flex: 1 }} value={keys.codex} onChange={(e) => setKeys({ ...keys, codex: e.target.value })} />
@@ -238,5 +258,60 @@ export function SettingsPage() {
         </Panel>
       </div>
     </div>
+  );
+}
+
+function CursorModelField({
+  value,
+  hasKey,
+  models,
+  onChange,
+  onReload,
+}: {
+  value: string;
+  hasKey: boolean;
+  models: CursorModels | null;
+  onChange: (id: string) => void;
+  onReload: () => void;
+}) {
+  const list = models && "list" in models ? models.list : null;
+  if (!list) {
+    const hint = !hasKey
+      ? "Lưu Cursor API key để chọn model từ tài khoản (có Auto nếu tài khoản hỗ trợ)."
+      : models && "error" in models
+        ? `${models.error}. Có thể gõ tay id model.`
+        : "Đang tải danh sách model…";
+    return (
+      <Field label="Model Cursor" hint={hint}>
+        <div className="row">
+          <input type="text" style={{ flex: 1 }} value={value} onChange={(e) => onChange(e.target.value)} />
+          {hasKey && models && "error" in models && (
+            <button type="button" className="btn sm" onClick={onReload}>
+              Tải lại
+            </button>
+          )}
+        </div>
+      </Field>
+    );
+  }
+  const auto = list.find((m) => m.auto);
+  const others = list.filter((m) => m !== auto);
+  const known = list.some((m) => m.id === value) || (value === "auto" && !!auto);
+  const selected = value === "auto" && auto ? auto.id : value;
+  return (
+    <Field
+      label="Model Cursor"
+      hint={auto ? "Auto: Cursor tự chọn model cho từng lượt, giống chế độ Auto trong app Cursor." : "Tài khoản này không có Auto cho SDK — chọn một model cụ thể."}
+    >
+      <select aria-label="Model Cursor" value={selected} onChange={(e) => onChange(e.target.value)}>
+        {auto && <option value={auto.id}>Auto — Cursor tự chọn model</option>}
+        {others.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label === m.id ? m.id : `${m.label} (${m.id})`}
+          </option>
+        ))}
+        {!known && value && <option value={value}>{value} (không có trong danh sách của tài khoản)</option>}
+      </select>
+    </Field>
   );
 }

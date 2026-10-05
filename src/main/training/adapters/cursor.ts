@@ -22,6 +22,24 @@ function toolIdentity(name: string, args: unknown): { tool: string; server?: str
   return { tool: name, args };
 }
 
+export interface CursorModelOption {
+  id: string;
+  label: string;
+  /** Lets Cursor pick the model per request, like Auto in the Cursor app. */
+  auto: boolean;
+}
+
+/** Local agents only accept ids (or aliases) from this account-specific list. */
+export async function listCursorModels(apiKey: string): Promise<CursorModelOption[]> {
+  const { Cursor } = await load();
+  const models = await Cursor.models.list({ apiKey });
+  return models.map((m) => ({
+    id: m.id,
+    label: m.displayName || m.id,
+    auto: m.id === "auto" || !!m.aliases?.includes("auto"),
+  }));
+}
+
 export const cursorAdapter: AgentAdapter = {
   provider: "cursor",
   async runTurn(req: AgentTurnRequest): Promise<AgentTurnResult> {

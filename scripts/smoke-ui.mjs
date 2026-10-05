@@ -581,6 +581,14 @@ try {
     "Cài đặt: tham chiếu script đã duyệt cùng dự án bật mặc định",
   );
   await shot("11-settings");
+  const cursorModelField = win.locator("label.field", { hasText: "Model Cursor" });
+  check((await cursorModelField.innerText()).includes("Lưu Cursor API key để chọn model"), "Cài đặt: chưa có Cursor key thì Model Cursor là ô gõ tay kèm hướng dẫn");
+  await bridge("setApiKey", "cursor", "smoke-fake-cursor-key");
+  await nav("History");
+  await nav("Cài đặt");
+  await cursorModelField.getByRole("button", { name: "Tải lại" }).waitFor({ timeout: 60_000 });
+  check((await cursorModelField.innerText()).includes("Không tải được danh sách model Cursor"), "Cài đặt: key sai thì báo không tải được danh sách model, vẫn gõ tay được");
+  await bridge("setApiKey", "cursor", "");
 
   // ---------- delete an approved test case with its history ----------
   await nav("Test Cases");

@@ -23,7 +23,9 @@ Dữ liệu của app nằm trong thư mục `data` cạnh file exe. Muốn sao 
 
 Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor**.
 
-- **Cursor** (mặc định): nhập **Cursor API key**. Đã đăng nhập phần mềm Cursor vẫn phải nhập key. Key lấy ở trang tài khoản trên cursor.com.
+- **Cursor** (mặc định):
+  - Nhập **Cursor API key** rồi bấm **Lưu**. Đã đăng nhập phần mềm Cursor vẫn phải nhập key. Key lấy ở trang tài khoản trên cursor.com.
+  - Ở ô **Model Cursor**, chọn **Auto** để Cursor tự chọn model, giống app Cursor. Cũng có thể chọn một model cụ thể. Bấm **Lưu cài đặt** ở cuối trang.
 - **Codex**:
   - Nếu máy này đã đăng nhập Codex bằng tài khoản ChatGPT, với cùng tài khoản Windows, thì **không cần nhập key**. Để trống ô OpenAI API key. Đăng nhập qua app Codex, extension Codex trong VS Code/Cursor, hoặc Codex CLI đều được.
   - Nếu chưa đăng nhập, nhập **OpenAI API key**.

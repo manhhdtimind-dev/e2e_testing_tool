@@ -50,6 +50,7 @@ import { cancelTraining, isScriptTraining, saveManualCandidate, startTraining, t
 import { runPreflight } from "./training/preflight";
 import { validateScript } from "../core/scriptValidator";
 import { getIntegrationStatus, runIntegrationCheck } from "./training/integrationCheck";
+import { listCursorModels } from "./training/adapters/cursor";
 import { cancelRecording, finishRecording, isRecording, recordingState, startRecording } from "./recording/session";
 
 const RECORDING_BUSY = "Test case này đang được ghi thao tác; kết thúc hoặc huỷ phiên ghi trước.";
@@ -72,6 +73,15 @@ export function createApi(ctx: AppContext, win: () => BrowserWindow | null) {
       else ctx.secrets.delete(k);
       ctx.repo.audit("settings.api_key", "agent", provider, { cleared: !key.trim() });
       return ctx.settings();
+    },
+    listCursorModels: async () => {
+      const key = ctx.secrets.get(secretKeys.cursorKey);
+      if (!key) throw new AppError("Chưa cấu hình Cursor API key");
+      try {
+        return await listCursorModels(key);
+      } catch (e) {
+        throw new AppError(`Không tải được danh sách model Cursor: ${(e as Error).message}`);
+      }
     },
     getIntegrationStatus: () => getIntegrationStatus(ctx),
     runIntegrationCheck: (agent: AgentProvider, profileId: string, envId: string) => runIntegrationCheck(ctx, agent, profileId, envId),
