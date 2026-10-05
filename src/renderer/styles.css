@@ -204,6 +204,8 @@ table.t th[aria-sort="ascending"] .sort-mark, table.t th[aria-sort="descending"]
 .ev.message .k { color: var(--pass); }
 .ev .v { word-break: break-word; }
 .ev details summary { cursor: pointer; color: var(--ink-2); }
+details.advanced { margin-top: 12px; }
+details.advanced > summary { cursor: pointer; color: var(--ink-2); font-size: 12.5px; margin-bottom: 8px; }
 .ev.thinking .v { color: var(--ink-2); }
 .ev details.thinking[open] > summary { font-size: 0; }
 .ev details.thinking[open] > summary::after { content: "Thu gọn"; font-size: 12px; }

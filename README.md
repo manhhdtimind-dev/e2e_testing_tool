@@ -48,6 +48,8 @@ Chỉ cần dùng được **một** trong hai agent. App chọn sẵn **Cursor*
 
 Mục **Giá trị secret** chỉ hiện khi có test case dùng biến bí mật, ví dụ test trang đăng nhập hoặc nhập API key vào form (xem mục 4). Bình thường bạn không cần làm gì ở đây.
 
+App chỉ mở trang thuộc domain của Base URL. Nếu test case cần bấm sang trang ở domain khác (đăng nhập Google, cổng thanh toán, trang tài liệu…), bấm **Nâng cao: cho phép mở thêm domain khác** dưới ô Base URL. Điền domain đó, ví dụ `accounts.google.com`, rồi bấm **Lưu environment**.
+
 ### Bước 3 — Kiểm tra agent
 
 Quay lại **Cài đặt**. Ở mục **Kiểm tra tích hợp agent**, bấm **Chạy kiểm tra** ở dòng **Cursor** (hoặc Codex nếu bạn dùng Codex). Kết quả báo thành công là được.
@@ -170,6 +172,7 @@ Vào **Training**, chọn test case, Environment, Chrome profile và Agent (mặ
 | "Chưa cấu hình Cursor API key" | Vào Cài đặt nhập Cursor API key, hoặc chọn Codex ở Training |
 | Codex báo lỗi đăng nhập dù không nhập key | Phiên đăng nhập Codex trên máy đã hết hạn hoặc thuộc tài khoản Windows khác. Đăng nhập lại Codex, hoặc nhập OpenAI API key |
 | Tải file lên không được | Vào trang quản lý extension của Chrome, mở chi tiết Playwright MCP Bridge, bật **Allow access to file URLs** |
+| `DOMAIN_BLOCKED` | Test case mở trang ở domain khác. Thêm domain trong lỗi vào Environment → **Nâng cao: cho phép mở thêm domain khác** |
 | Báo trùng tên khi chạy lại | Đổi dữ liệu (ví dụ tên) trước khi chạy |
 | AI viết test case nhưng không ra file Excel | Kiểm tra đã copy đúng thư mục skill, đã cài Node.js và đã khởi động lại Cursor. Trong chat, thêm câu `dùng skill writing-e2e-test-cases` |
 | Import báo `test_id` đã thuộc dự án khác | Bảo AI: `đổi mã test case, thêm mã dự án vào đầu`, rồi Import lại |

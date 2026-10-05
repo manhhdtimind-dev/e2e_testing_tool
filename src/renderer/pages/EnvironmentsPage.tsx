@@ -10,9 +10,21 @@ interface EnvDraft {
   environment_id?: string;
   name: string;
   base_url: string;
+  extra_domains: string;
 }
 
-const blankEnv = (): EnvDraft => ({ name: "", base_url: "" });
+const blankEnv = (): EnvDraft => ({ name: "", base_url: "", extra_domains: "" });
+
+/** The base URL host is always allowed, so only the other domains are shown for editing. */
+function extraDomains(env: EnvRow): string[] {
+  let host = "";
+  try {
+    host = new URL(env.base_url).hostname.toLowerCase();
+  } catch {
+    // saved environments always have a valid base URL
+  }
+  return env.allowed_domains.filter((d) => d !== host);
+}
 
 function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; profiles: BrowserProfile[]; onSaved: (id: string) => void }) {
   const [d, setD] = useState<EnvDraft>(blankEnv());
@@ -30,6 +42,7 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
             environment_id: env.environment_id,
             name: env.name,
             base_url: env.base_url,
+            extra_domains: extraDomains(env).join(", "),
           }
         : blankEnv(),
     );
@@ -49,6 +62,7 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           environment_id: d.environment_id,
           name: d.name,
           base_url: d.base_url,
+          allowed_domains: d.extra_domains.split(/[,\s]+/).filter(Boolean),
         }),
       "Đã lưu environment",
     );
@@ -62,10 +76,19 @@ function EnvironmentEditor({ env, profiles, onSaved }: { env: EnvRow | null; pro
           <Field label="Tên">
             <input type="text" value={d.name} onChange={(e) => setD({ ...d, name: e.target.value })} />
           </Field>
-          <Field label="Base URL" hint="Training và Testing chỉ được mở trang thuộc domain này.">
+          <Field label="Base URL" hint="Training và Testing chỉ được mở trang thuộc domain này (và các domain thêm ở mục Nâng cao).">
             <input type="url" value={d.base_url} placeholder="https://app.example.com" onChange={(e) => setD({ ...d, base_url: e.target.value })} />
           </Field>
         </div>
+        <details className="advanced" open={!!env && extraDomains(env).length > 0} key={env?.environment_id ?? "new"}>
+          <summary>Nâng cao: cho phép mở thêm domain khác</summary>
+          <Field
+            label="Domain khác được phép mở"
+            hint="Chỉ điền khi test case cần mở trang ở domain khác, ví dụ đăng nhập Google (accounts.google.com), cổng thanh toán, trang tài liệu. Phân tách bằng dấu phẩy; *.example.com cho mọi domain con."
+          >
+            <input type="text" value={d.extra_domains} placeholder="accounts.google.com, *.example.com" onChange={(e) => setD({ ...d, extra_domains: e.target.value })} />
+          </Field>
+        </details>
         <div className="row end" style={{ marginTop: 14 }}>
           <button className="btn primary" disabled={busy} onClick={save}>
             Lưu environment

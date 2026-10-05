@@ -213,6 +213,17 @@ try {
   await nav("Environment");
   await win.getByText("Demo local").first().waitFor();
   check((await win.getByText("Kiểm tra đăng nhập").count()) === 0, "Environment không còn phần auth_check");
+  await win.locator("li", { hasText: "Demo local" }).first().click();
+  const advanced = win.locator("details.advanced");
+  const extraInput = advanced.locator("input");
+  check(!(await extraInput.isVisible()), "Domain khác được phép mở ẩn mặc định");
+  await advanced.locator("summary").click();
+  await extraInput.fill("docs.example.org");
+  await win.getByRole("button", { name: "Lưu environment" }).click();
+  await win.waitForTimeout(500);
+  const savedEnv = (await bridge("listEnvironments")).find((e) => e.environment_id === env.environment_id);
+  check(JSON.stringify(savedEnv.allowed_domains) === JSON.stringify(["localhost", "docs.example.org"]), `Lưu domain thêm giữ host Base URL (${savedEnv.allowed_domains})`);
+  await bridge("saveEnvironment", { ...envInput, environment_id: env.environment_id, base_url: BASE });
   const detected = await bridge("detectProfiles");
   if (detected.length) {
     const d = detected[0];
