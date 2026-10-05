@@ -1,5 +1,6 @@
 import type { AgentAdapter, AgentTurnRequest, AgentTurnResult } from "./types";
 import { ThreadUnavailableError, mcpResultText, ts } from "./types";
+import { StreamedTextBuffer } from "../../../core/trainingEvents";
 
 type CursorModule = typeof import("@cursor/sdk");
 
@@ -75,6 +76,11 @@ export const cursorAdapter: AgentAdapter = {
       };
       req.signal.addEventListener("abort", onAbort, { once: true });
       const texts: string[] = [];
+      const streamed = new StreamedTextBuffer(req.onEvent);
+      const emit: typeof req.onEvent = (e) => {
+        streamed.flush();
+        req.onEvent(e);
+      };
       try {
         for await (const m of run.stream()) {
           if (m.type === "assistant") {
@@ -84,16 +90,16 @@ export const cursorAdapter: AgentAdapter = {
               .join("");
             if (text) {
               texts.push(text);
-              req.onEvent({ ts: ts(), kind: "message", text });
+              streamed.push("message", text, ts());
             }
           } else if (m.type === "thinking") {
-            req.onEvent({ ts: ts(), kind: "thinking", text: m.text });
+            if (m.text) streamed.push("thinking", m.text, ts());
           } else if (m.type === "tool_call") {
             const id = toolIdentity(m.name, m.args);
             if (m.status === "running") {
-              req.onEvent({ ts: ts(), kind: "tool_call", call_id: m.call_id, tool: id.tool, server: id.server, args: id.args });
+              emit({ ts: ts(), kind: "tool_call", call_id: m.call_id, tool: id.tool, server: id.server, args: id.args });
             } else {
-              req.onEvent({
+              emit({
                 ts: ts(),
                 kind: "tool_result",
                 call_id: m.call_id,
@@ -105,14 +111,16 @@ export const cursorAdapter: AgentAdapter = {
               });
             }
           } else if (m.type === "status" && (m.status === "ERROR" || m.status === "EXPIRED")) {
-            req.onEvent({ ts: ts(), kind: "error", text: m.message ?? m.status });
+            emit({ ts: ts(), kind: "error", text: m.message ?? m.status });
           }
         }
       } finally {
+        streamed.flush();
         req.signal.removeEventListener("abort", onAbort);
       }
       const result = await run.wait();
-      finalText = result.result ?? texts.join("\n");
+      // Assistant messages arrive as deltas, so they join without a separator.
+      finalText = result.result ?? texts.join("");
       if (result.status === "cancelled" || req.signal.aborted) {
         return { providerThreadId: agentId, status: "cancelled", finalText, error: String(req.signal.reason ?? "cancelled") };
       }

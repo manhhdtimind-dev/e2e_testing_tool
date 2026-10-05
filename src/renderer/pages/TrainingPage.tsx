@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AGENT_ORDER, type AgentProvider, type BrowserProfile, type CandidateRevision, type InputValues, type PreflightResult, type RecordingState, type TrainingAttempt, type TrainingEvent, type TrialRun } from "../../shared/types";
+import { mergeStreamedText } from "../../core/trainingEvents";
 import { api, useAppEvent, type ApiResult } from "../api";
 import { ArtifactImage, Badge, CaseOptions, CodeView, DiffView, EvidenceShots, InputForm, Modal, Panel, StepsTable, fmtTime, useAction, useConfirm, useToast } from "../components/ui";
 
@@ -61,8 +62,13 @@ function EventRow({ e }: { e: TrainingEvent }) {
             <summary className="mono">{e.text}</summary>
             <pre>{String(e.result ?? "")}</pre>
           </details>
+        ) : e.kind === "thinking" && (e.text ?? "").trim().length > 280 ? (
+          <details className="thinking">
+            <summary>{(e.text ?? "").trim().slice(0, 200)}…</summary>
+            <span className="pre">{(e.text ?? "").trim()}</span>
+          </details>
         ) : (
-          <span className="pre">{e.kind === "thinking" ? (e.text ?? "").slice(0, 400) : e.text}</span>
+          <span className="pre">{(e.text ?? "").trim()}</span>
         )}
       </div>
     </div>
@@ -198,7 +204,7 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
     }
   });
   useAppEvent<{ attempt_id: string; event: TrainingEvent }>("training:event", ({ attempt_id, event }) => {
-    setLiveEvents((m) => ({ ...m, [attempt_id]: [...(m[attempt_id] ?? []), event].slice(-400) }));
+    setLiveEvents((m) => ({ ...m, [attempt_id]: [...(m[attempt_id] ?? []), event].slice(-1000) }));
   });
   useAppEvent<TrialRun & { step_count?: number }>("trial:update", (t) => {
     if (t.step_count !== undefined) setTrialSteps((m) => ({ ...m, [t.trial_id]: t.step_count! }));
@@ -226,7 +232,8 @@ export function TrainingPage({ intent, onTest }: { intent: TrainingIntent | null
       .catch(() => setStoredEvents([]));
   }, [attempt?.attempt_id, attempt?.status, attempt?.artifacts.events]);
 
-  const events = attempt ? (attempt.status === "RUNNING" || attempt.status === "QUEUED" || !storedEvents.length ? (liveEvents[attempt.attempt_id] ?? storedEvents) : storedEvents) : [];
+  const rawEvents = attempt ? (attempt.status === "RUNNING" || attempt.status === "QUEUED" || !storedEvents.length ? (liveEvents[attempt.attempt_id] ?? storedEvents) : storedEvents) : [];
+  const events = useMemo(() => (attempt?.agent === "cursor" ? mergeStreamedText(rawEvents) : rawEvents), [attempt?.agent, rawEvents]);
   useEffect(() => {
     const box = eventsBox.current;
     if (box) box.scrollTop = box.scrollHeight;
